@@ -1,0 +1,1065 @@
+#!/usr/bin/env python3
+"""logbook — a log of important learnings, e.g. AI-assisted coding session retros.
+
+Single-file CLI. Subcommands:
+    session                                       print session info as JSON
+    add-team <git-url> [--as <name>]              register a team retro repo
+    device-id                                     print/persist per-workstation id
+    config                                        print resolved config
+    retro publish <category> <slug> <dir> [--team <t>]
+    retro template-path                           absolute path to retro template
+    retro estimate-cost <i> <o> <cc> <cr> [--model opus-4.7|opus-4.6|...]
+    install-cli [--dir <path>]                    drop a 'logbook' wrapper on PATH
+    completions zsh [--print]                     install/print zsh completions
+"""
+from __future__ import annotations
+
+import argparse
+import glob
+import hashlib
+import json
+import os
+import re
+import shutil
+import socket
+import sqlite3
+import subprocess
+import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import unquote
+
+
+PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or Path(__file__).resolve().parent.parent)
+LOGBOOK_HOME = Path(os.environ.get("LOGBOOK_HOME") or (Path.home() / ".logbook"))
+REPOS_DIR = LOGBOOK_HOME / "repos"
+CONFIG_PATH = LOGBOOK_HOME / "config.yaml"
+DEVICE_ID_PATH = LOGBOOK_HOME / "device-id"
+TEMPLATE_PATH = PLUGIN_ROOT / "templates" / "retro.md"
+
+DEVICE_ID_LENGTH = 12
+
+ZSH_COMPLETION = r"""#compdef logbook
+
+_logbook() {
+  local -a commands=(
+    'session:print session info as JSON'
+    'add-team:register a team retro git repo'
+    'device-id:print or generate the per-workstation device id'
+    'config:print resolved logbook config'
+    'retro:retro subcommands (publish, template-path, estimate-cost)'
+    'install-cli:drop a logbook wrapper on PATH'
+    'completions:install or print shell completions'
+  )
+
+  local -a retro_subs=(
+    'publish:commit and push a staged retro to a team repo'
+    'template-path:print the absolute path to the retro template'
+    'estimate-cost:estimate session cost from token counts'
+  )
+
+  if (( CURRENT == 2 )); then
+    _describe 'command' commands
+    return
+  fi
+
+  case "${words[2]}" in
+    retro)
+      if (( CURRENT == 3 )); then
+        _describe 'retro subcommand' retro_subs
+      fi
+      ;;
+    completions)
+      (( CURRENT == 3 )) && compadd zsh
+      ;;
+  esac
+}
+
+_logbook "$@"
+"""
+
+
+# ── pricing ─────────────────────────────────────────────────────────────────
+
+# Per-million-token prices (USD). Source: https://docs.anthropic.com/en/docs/about-claude/pricing
+MODEL_PRICING = {
+    "opus-4.7":   {"input": 15.0, "output": 75.0, "cache_create": 18.75, "cache_read": 1.50},
+    "opus-4.6":   {"input": 15.0, "output": 75.0, "cache_create": 18.75, "cache_read": 1.50},
+    "sonnet-4.6": {"input": 3.0,  "output": 15.0, "cache_create": 3.75,  "cache_read": 0.30},
+    "haiku-4.5":  {"input": 0.80, "output": 4.0,  "cache_create": 1.0,   "cache_read": 0.08},
+}
+DEFAULT_MODEL = "opus-4.7"
+
+
+def _normalize_model(name: str) -> str:
+    n = name.lower().replace(" ", "").replace("_", "-")
+    n = n.replace("claude-", "")
+    if n in MODEL_PRICING:
+        return n
+    for key in MODEL_PRICING:
+        if key in n:
+            return key
+    sys.exit(f"unknown model: {name} (supported: {', '.join(MODEL_PRICING)})")
+
+
+def cmd_estimate_cost(args):
+    pricing = MODEL_PRICING[_normalize_model(args.model)]
+    cost = (
+        (args.input_tokens / 1e6) * pricing["input"]
+        + (args.output_tokens / 1e6) * pricing["output"]
+        + (args.cache_create / 1e6) * pricing["cache_create"]
+        + (args.cache_read / 1e6) * pricing["cache_read"]
+    )
+    print(f"~${cost:.2f}")
+
+
+# ── config / yaml ──────────────────────────────────────────────────────────
+
+def _require_yaml():
+    try:
+        import yaml
+    except ImportError:
+        sys.exit("PyYAML is required: pip install pyyaml")
+    return yaml
+
+
+def load_config() -> dict:
+    if not CONFIG_PATH.exists():
+        return {}
+    yaml = _require_yaml()
+    with open(CONFIG_PATH) as f:
+        return yaml.safe_load(f) or {}
+
+
+def save_config(config: dict) -> None:
+    yaml = _require_yaml()
+    LOGBOOK_HOME.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_PATH, "w") as f:
+        yaml.safe_dump(config, f, sort_keys=False)
+
+
+def cmd_config(_args):
+    config = load_config()
+    print(json.dumps({
+        "logbook_home": str(LOGBOOK_HOME),
+        "config_path": str(CONFIG_PATH),
+        "device_id_path": str(DEVICE_ID_PATH),
+        "template_path": str(TEMPLATE_PATH),
+        "config": config,
+    }, indent=2))
+
+
+# ── device id ──────────────────────────────────────────────────────────────
+
+def _generate_device_id() -> str:
+    payload = f"{socket.gethostname()}:{uuid.getnode()}".encode()
+    return hashlib.sha256(payload).hexdigest()[:DEVICE_ID_LENGTH]
+
+
+def cmd_device_id(_args):
+    if DEVICE_ID_PATH.exists():
+        existing = DEVICE_ID_PATH.read_text().strip()
+        if existing:
+            print(existing)
+            return
+    DEVICE_ID_PATH.parent.mkdir(parents=True, exist_ok=True)
+    device_id = _generate_device_id()
+    DEVICE_ID_PATH.write_text(device_id + "\n")
+    print(device_id)
+
+
+# ── add-team ──────────────────────────────────────────────────────────────
+
+def _derive_team_name(git_url: str) -> str:
+    name = git_url.rstrip("/").rsplit("/", 1)[-1]
+    if name.endswith(".git"):
+        name = name[:-4]
+    if not name:
+        sys.exit(f"could not derive team name from URL: {git_url}")
+    return name
+
+
+def cmd_add_team(args):
+    team = args.team_name or _derive_team_name(args.git_url)
+    if not re.match(r"^[a-z0-9][a-z0-9_-]*$", team):
+        sys.exit(f"invalid team name {team!r}: lowercase letters, digits, hyphen, underscore only")
+
+    dest = REPOS_DIR / team
+    if dest.exists():
+        sys.exit(f"team clone already exists at {dest}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    result = subprocess.run(
+        ["git", "clone", args.git_url, str(dest)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        sys.exit(f"git clone failed:\n{result.stderr}")
+
+    config = load_config()
+    config.setdefault("teams", {})
+    config["teams"][team] = {"remote": args.git_url}
+    if "default_team" not in config:
+        config["default_team"] = team
+    save_config(config)
+
+    print(f"cloned {args.git_url} to {dest}")
+    print(f"registered as team '{team}'")
+    if config["default_team"] == team:
+        print(f"set as default team")
+
+
+# ── retro publish ──────────────────────────────────────────────────────────
+
+def _resolve_team(config: dict, team: str | None) -> str:
+    if team:
+        if team not in config.get("teams", {}):
+            sys.exit(f"team {team!r} not registered — run /logbook add-team first")
+        return team
+    default = config.get("default_team")
+    if not default:
+        sys.exit("no default team set — run /logbook add-team or pass --team")
+    return default
+
+
+def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(["git"] + args, cwd=cwd, capture_output=True, text=True)
+
+
+def cmd_retro_publish(args):
+    config = load_config()
+    if not config:
+        sys.exit("no logbook config — run /logbook add-team <git-url> first")
+
+    team = _resolve_team(config, args.team)
+    clone = REPOS_DIR / team
+    if not (clone / ".git").exists():
+        sys.exit(f"team clone missing or not a git repo: {clone}")
+
+    source = Path(args.source_dir).resolve()
+    if not source.is_dir():
+        sys.exit(f"source dir does not exist: {source}")
+
+    branch = _run_git(["rev-parse", "--abbrev-ref", "HEAD"], clone)
+    if branch.returncode != 0:
+        sys.exit(f"could not determine current branch:\n{branch.stderr}")
+    branch_name = branch.stdout.strip()
+
+    fetch = _run_git(["fetch", "origin"], clone)
+    if fetch.returncode != 0:
+        sys.exit(f"git fetch failed:\n{fetch.stderr}")
+
+    rebase = _run_git(["pull", "--rebase", "origin", branch_name], clone)
+    if rebase.returncode != 0:
+        sys.exit(
+            f"git pull --rebase failed (resolve manually in {clone}):\n{rebase.stderr}"
+        )
+
+    rel_path = Path("retros") / args.category / args.slug
+    dest = clone / rel_path
+    if dest.exists():
+        sys.exit(f"retro already exists at {dest}")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, dest)
+
+    add = _run_git(["add", str(rel_path)], clone)
+    if add.returncode != 0:
+        sys.exit(f"git add failed:\n{add.stderr}")
+
+    diff = _run_git(["diff", "--cached", "--quiet"], clone)
+    if diff.returncode == 0:
+        sys.exit("nothing to commit — retro contents matched existing files")
+
+    commit = _run_git(["commit", "-m", f"retro: {args.category}/{args.slug}"], clone)
+    if commit.returncode != 0:
+        sys.exit(f"git commit failed:\n{commit.stderr}")
+
+    push = _run_git(["push"], clone)
+    if push.returncode != 0:
+        sys.exit(f"git push failed:\n{push.stderr}")
+
+    print(f"published {args.category}/{args.slug} to team '{team}'")
+
+
+def cmd_retro_template_path(_args):
+    if not TEMPLATE_PATH.is_file():
+        sys.exit(f"template missing: {TEMPLATE_PATH}")
+    print(TEMPLATE_PATH)
+
+
+# ── session info ──────────────────────────────────────────────────────────
+
+def _truncate(text, max_len=80):
+    if not text:
+        return ""
+    text = text.replace("\n", " ").strip()
+    if len(text) > max_len:
+        return text[:max_len] + "..."
+    return text
+
+
+def _parse_timestamp(ts):
+    if isinstance(ts, str):
+        return datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone()
+    if isinstance(ts, (int, float)):
+        return datetime.fromtimestamp(ts / 1000 if ts > 1e12 else ts, tz=timezone.utc).astimezone()
+    return None
+
+
+def _epoch_ms_to_iso(ms):
+    if not ms:
+        return None
+    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).isoformat()
+
+
+def _slugify(text):
+    if not text:
+        return None
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower())
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")
+    return slug or None
+
+
+def _format_session(*, id, name=None, slug=None, tool, model=None,
+                    start=None, end=None, tokens=None, transcript=None):
+    return {
+        "id": id,
+        "name": name,
+        "slug": slug or _slugify(name),
+        "tool": tool,
+        "model": model,
+        "start": start,
+        "end": end,
+        "tokens": tokens or {},
+        "transcript": transcript,
+    }
+
+
+def _extract_tool_info(block):
+    name = block.get("name", "unknown")
+    inp = block.get("input", {})
+    detail = ""
+    if name in ("Read", "Edit", "Write"):
+        detail = inp.get("file_path", "")
+    elif name == "Bash":
+        detail = _truncate(inp.get("command", ""), 60)
+    elif name in ("Grep", "Glob"):
+        detail = inp.get("pattern", "")
+    elif name == "Task":
+        detail = inp.get("description", "")
+    elif name == "WebFetch":
+        detail = _truncate(inp.get("url", ""), 60)
+    elif name == "WebSearch":
+        detail = _truncate(inp.get("query", ""), 60)
+    return name, detail
+
+
+def _extract_user_text(message):
+    content = message.get("content", "")
+    if isinstance(content, list):
+        texts = [
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        for text in texts:
+            if text.strip() and not text.lstrip().startswith("<"):
+                return text
+        for text in texts:
+            if text.strip():
+                return text
+    elif isinstance(content, str):
+        return content
+    return ""
+
+
+def _clean_session_name(text, max_len=120):
+    text = re.sub(r"<[^>]+>", " ", text)
+    for line in text.splitlines():
+        line = line.strip()
+        if line:
+            text = line
+            break
+    else:
+        return None
+    text = re.sub(r"\s*/\w+(?:\s+\S+)*\s*$", "", text).strip()
+    if not text:
+        return None
+    if len(text) > max_len:
+        text = text[:max_len].rsplit(" ", 1)[0] + "..."
+    return text
+
+
+def _parse_claude_transcript(path):
+    events = []
+    model = None
+    name = None
+    tokens = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
+
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            ts = _parse_timestamp(obj.get("timestamp"))
+            if ts:
+                events.append(ts)
+
+            msg = obj.get("message")
+            if isinstance(msg, dict):
+                if not name and msg.get("role") == "user":
+                    name = _clean_session_name(_extract_user_text(msg))
+                if not model and msg.get("model"):
+                    model = msg["model"]
+                usage = msg.get("usage")
+                if usage:
+                    for key in tokens:
+                        tokens[key] += usage.get(key, 0)
+
+    stats = {}
+    if name:
+        stats["name"] = name
+    if model:
+        stats["model"] = model
+    if events:
+        events.sort()
+        stats["createdAt"] = events[0].isoformat()
+        stats["lastUpdatedAt"] = events[-1].isoformat()
+    if any(v > 0 for v in tokens.values()):
+        stats["tokens"] = tokens
+    return stats
+
+
+def _extract_claude_detailed(session_id, transcript_path):
+    messages = []
+    compaction_events = []
+    line_number = 0
+    with open(transcript_path) as f:
+        for line in f:
+            line_number += 1
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            msg_type = msg.get("type")
+            if msg_type == "system":
+                text = msg.get("message", msg.get("content", ""))
+                if isinstance(text, str) and "conversation compacted" in text.lower():
+                    compaction_events.append({"line": line_number, "timestamp": msg.get("timestamp")})
+                continue
+            if msg_type in ("progress", "file-history-snapshot"):
+                continue
+            if msg_type in ("user", "assistant"):
+                messages.append(msg)
+
+    if not messages:
+        return {}
+
+    timestamps = [t for t in (_parse_timestamp(m.get("timestamp")) for m in messages) if t]
+    start = min(timestamps) if timestamps else None
+    end = max(timestamps) if timestamps else None
+
+    tool_counts = {}
+    timeline = []
+    files_ops = {}
+    user_messages = []
+
+    for msg in messages:
+        ts = _parse_timestamp(msg.get("timestamp"))
+        msg_type = msg["type"]
+
+        if msg_type == "user":
+            content = msg.get("message", {}).get("content", "")
+            text = _extract_user_display_text(content)
+            if text:
+                user_messages.append(text)
+            if ts and text:
+                timeline.append({"time": ts.isoformat(), "type": "user", "detail": text})
+
+        elif msg_type == "assistant":
+            content = msg.get("message", {}).get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        tool_name, detail = _extract_tool_info(block)
+                        tool_counts[tool_name] = tool_counts.get(tool_name, 0) + 1
+                        if ts:
+                            timeline.append({"time": ts.isoformat(), "type": tool_name, "detail": detail})
+                        if tool_name in ("Read", "Edit", "Write"):
+                            fp = block.get("input", {}).get("file_path", "")
+                            if fp:
+                                files_ops.setdefault(fp, set()).add(tool_name)
+
+    timeline.sort(key=lambda x: x["time"])
+    files_touched = {fp: sorted(ops) for fp, ops in sorted(files_ops.items())}
+
+    initial_context_tokens = None
+    for msg in messages:
+        if msg["type"] == "assistant":
+            usage = msg.get("message", {}).get("usage", {})
+            if usage:
+                initial_context_tokens = (
+                    usage.get("input_tokens", 0)
+                    + usage.get("cache_creation_input_tokens", 0)
+                    + usage.get("cache_read_input_tokens", 0)
+                )
+            break
+
+    repos = _detect_repos_from_files(files_ops)
+    git_activity = _get_git_timeline(repos) if repos else []
+
+    project_dir = Path(transcript_path).parent
+    overlapping = _find_overlapping_sessions(session_id, start, end, project_dir)
+
+    result = {
+        "tool_usage": dict(sorted(tool_counts.items(), key=lambda x: -x[1])),
+        "files_touched": files_touched,
+        "timeline": timeline,
+        "user_messages": user_messages,
+        "overlapping_sessions": overlapping,
+    }
+    if initial_context_tokens is not None:
+        result["initial_context_tokens"] = initial_context_tokens
+    if compaction_events:
+        result["compaction"] = {
+            "count": len(compaction_events),
+            "events": compaction_events,
+            "total_lines": line_number,
+        }
+    if git_activity:
+        result["git_activity"] = git_activity
+    return result
+
+
+def _extract_user_display_text(content):
+    if isinstance(content, str):
+        return _truncate(content)
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text = block["text"].strip()
+                if text.startswith("<ide_") or text.startswith("<selection"):
+                    continue
+                if text:
+                    return _truncate(text)
+    return ""
+
+
+def _detect_repos_from_files(files_ops):
+    roots = set()
+    for fp in files_ops:
+        p = Path(fp)
+        while p != p.parent:
+            if (p / ".git").exists():
+                roots.add(str(p))
+                break
+            p = p.parent
+    return sorted(roots)
+
+
+def _get_git_timeline(repo_paths, since_days=7):
+    commits = []
+    for repo in repo_paths:
+        repo = Path(repo)
+        if not (repo / ".git").exists():
+            continue
+        try:
+            result = subprocess.run(
+                ["git", "log", "--all", f"--since={since_days} days ago", "--format=%aI|%s|%an"],
+                cwd=repo, capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                for raw_line in result.stdout.strip().splitlines():
+                    parts = raw_line.split("|", 2)
+                    if len(parts) == 3:
+                        ts = _parse_timestamp(parts[0])
+                        if ts:
+                            commits.append({
+                                "time": ts.isoformat(),
+                                "repo": repo.name,
+                                "subject": parts[1],
+                                "author": parts[2],
+                            })
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            continue
+    commits.sort(key=lambda x: x["time"])
+    return commits
+
+
+def _get_session_time_range(session_path):
+    first_ts = last_ts = None
+    first_user_text = None
+    with open(session_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ts = _parse_timestamp(msg.get("timestamp"))
+            if ts:
+                if first_ts is None:
+                    first_ts = ts
+                last_ts = ts
+            if msg.get("type") == "user" and first_user_text is None:
+                first_user_text = _extract_user_display_text(msg.get("message", {}).get("content", ""))
+    return first_ts, last_ts, first_user_text
+
+
+def _find_overlapping_sessions(session_id, start, end, current_project_dir=None):
+    if not start or not end:
+        return []
+    overlapping = []
+    scanned = set()
+    projects_root = Path.home() / ".claude" / "projects"
+    if not projects_root.exists():
+        return []
+
+    for scan_dir in projects_root.iterdir():
+        if not scan_dir.is_dir():
+            continue
+        is_same_project = (current_project_dir is not None and scan_dir == Path(current_project_dir))
+        for sibling in scan_dir.glob("*.jsonl"):
+            sid = sibling.stem
+            if sid == session_id or sid in scanned:
+                continue
+            scanned.add(sid)
+            s_start, s_end, s_first_msg = _get_session_time_range(sibling)
+            if not s_start or not s_end:
+                continue
+            if s_start <= end and s_end >= start:
+                line_count = sum(1 for _ in open(sibling))
+                overlapping.append({
+                    "session_id": sid,
+                    "start": s_start.isoformat(),
+                    "end": s_end.isoformat(),
+                    "first_message": s_first_msg or "(no user message)",
+                    "lines": line_count,
+                    "same_project": is_same_project,
+                    "project": scan_dir.name,
+                })
+    overlapping.sort(key=lambda x: x["start"])
+    return overlapping
+
+
+def _claude_code_session(session_id):
+    pattern = str(Path.home() / ".claude" / "projects" / "*" / f"{session_id}.jsonl")
+    matches = glob.glob(pattern)
+    transcript = matches[0] if matches else None
+    stats = _parse_claude_transcript(transcript) if transcript else {}
+
+    output = _format_session(
+        id=session_id,
+        name=stats.get("name"),
+        tool="Claude Code",
+        model=stats.get("model"),
+        start=stats.get("createdAt"),
+        end=stats.get("lastUpdatedAt"),
+        tokens=stats.get("tokens"),
+        transcript=transcript,
+    )
+    if transcript:
+        output["detailed"] = _extract_claude_detailed(session_id, transcript)
+    print(json.dumps(output, indent=2))
+
+
+def _claude_code_session_by_project(workspace_path):
+    workspace_path = str(Path(workspace_path).resolve())
+    encoded = workspace_path.replace("/", "-")
+    project_dir = Path.home() / ".claude" / "projects" / encoded
+    if not project_dir.exists():
+        sys.exit(f"project directory not found: {project_dir}")
+
+    jsonl_files = sorted(project_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not jsonl_files:
+        sys.exit(f"no session files found in {project_dir}")
+
+    transcript = str(jsonl_files[0])
+    session_id = jsonl_files[0].stem
+    stats = _parse_claude_transcript(transcript)
+
+    output = _format_session(
+        id=session_id,
+        name=stats.get("name"),
+        tool="Claude Code",
+        model=stats.get("model"),
+        start=stats.get("createdAt"),
+        end=stats.get("lastUpdatedAt"),
+        tokens=stats.get("tokens"),
+        transcript=transcript,
+    )
+    output["detailed"] = _extract_claude_detailed(session_id, transcript)
+    print(json.dumps(output, indent=2))
+
+
+def _copilot_session(workspace_path):
+    code_user_dir = Path.home() / "Library" / "Application Support" / "Code" / "User"
+    if not code_user_dir.exists():
+        return False
+
+    ws_storage = code_user_dir / "workspaceStorage"
+    if not ws_storage.exists():
+        return False
+
+    workspace_path = str(Path(workspace_path).resolve())
+    matches = []
+    for entry in ws_storage.iterdir():
+        ws_json = entry / "workspace.json"
+        if ws_json.exists():
+            try:
+                data = json.loads(ws_json.read_text())
+                folder_path = unquote(data.get("folder", "").replace("file://", ""))
+                if folder_path.rstrip("/") == workspace_path.rstrip("/"):
+                    matches.append(entry)
+            except (json.JSONDecodeError, OSError):
+                continue
+    if not matches:
+        return False
+
+    ws_dir = next(
+        (m for m in matches if (m / "chatSessions").exists() and list((m / "chatSessions").glob("*.jsonl"))),
+        matches[0],
+    )
+    ws_state_db = ws_dir / "state.vscdb"
+    if not ws_state_db.exists():
+        return False
+
+    try:
+        conn = sqlite3.connect(str(ws_state_db))
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM ItemTable WHERE key = 'chat.ChatSessionStore.index'")
+        row = cursor.fetchone()
+        conn.close()
+    except (sqlite3.Error, OSError):
+        return False
+    if not row:
+        return False
+    try:
+        data = json.loads(row[0])
+    except json.JSONDecodeError:
+        return False
+    entries = data.get("entries", {})
+    if not entries:
+        return False
+
+    latest = max(entries.values(), key=lambda e: e.get("lastMessageDate", 0))
+    session_id = latest["sessionId"]
+    transcript_path = ws_dir / "chatSessions" / f"{session_id}.jsonl"
+    transcript = str(transcript_path) if transcript_path.exists() else None
+
+    stats = {}
+    if transcript:
+        model = None
+        prompt_tokens = 0
+        output_tokens = 0
+        seen = set()
+        with open(transcript) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                k = obj.get("k")
+                v = obj.get("v")
+                if k == ["inputState", "selectedModel"] and isinstance(v, dict):
+                    model = v.get("identifier") or v.get("id")
+                if (isinstance(k, list) and len(k) == 3
+                        and k[0] == "requests" and k[2] == "result"
+                        and isinstance(v, dict)):
+                    md = v.get("metadata", {})
+                    src = f"req-{k[1]}"
+                    if src not in seen and isinstance(md, dict):
+                        seen.add(src)
+                        prompt_tokens += md.get("promptTokens", 0)
+                        output_tokens += md.get("outputTokens", 0)
+        if model:
+            stats["model"] = model
+        if prompt_tokens or output_tokens:
+            stats["tokens"] = {
+                "prompt_tokens": prompt_tokens,
+                "output_tokens": output_tokens,
+                "note": "Copilot transcripts may undercount output tokens; streaming chunks vs full output",
+            }
+
+    output = _format_session(
+        id=session_id,
+        name=latest.get("title"),
+        tool="GitHub Copilot",
+        model=stats.get("model"),
+        start=_epoch_ms_to_iso(latest.get("timing", {}).get("created")
+                               or latest.get("timing", {}).get("startTime")),
+        end=_epoch_ms_to_iso(latest.get("timing", {}).get("lastRequestEnded")
+                             or latest.get("timing", {}).get("endTime")),
+        tokens=stats.get("tokens"),
+        transcript=transcript,
+    )
+    print(json.dumps(output, indent=2))
+    return True
+
+
+def _cursor_session(workspace_path):
+    cursor_user_dir = Path.home() / "Library" / "Application Support" / "Cursor" / "User"
+    if not cursor_user_dir.exists():
+        sys.exit("Cursor storage not found")
+
+    ws_storage = cursor_user_dir / "workspaceStorage"
+    if not ws_storage.exists():
+        sys.exit("Cursor workspace storage not found")
+
+    workspace_path = str(Path(workspace_path).resolve())
+    ws_dir = None
+    for entry in ws_storage.iterdir():
+        ws_json = entry / "workspace.json"
+        if ws_json.exists():
+            try:
+                data = json.loads(ws_json.read_text())
+                folder_path = unquote(data.get("folder", "").replace("file://", ""))
+                if folder_path.rstrip("/") == workspace_path.rstrip("/"):
+                    ws_dir = entry
+                    break
+            except (json.JSONDecodeError, OSError):
+                continue
+    if not ws_dir:
+        sys.exit(f"no Cursor workspace storage for {workspace_path}")
+
+    ws_state_db = ws_dir / "state.vscdb"
+    composer_id = None
+    try:
+        conn = sqlite3.connect(str(ws_state_db))
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM ItemTable WHERE key = 'composer.composerData'")
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            data = json.loads(row[0])
+            focused = data.get("lastFocusedComposerIds", [])
+            composer_id = focused[0] if focused else (data.get("selectedComposerIds", []) or [None])[0]
+    except (sqlite3.Error, json.JSONDecodeError, OSError):
+        pass
+    if not composer_id:
+        sys.exit("no focused Cursor composer found")
+
+    global_state_db = cursor_user_dir / "globalStorage" / "state.vscdb"
+    try:
+        conn = sqlite3.connect(str(global_state_db))
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM cursorDiskKV WHERE key = ?", (f"composerData:{composer_id}",))
+        row = cursor.fetchone()
+        conn.close()
+        metadata = json.loads(row[0]) if row else None
+    except (sqlite3.Error, json.JSONDecodeError, OSError):
+        metadata = None
+    if not metadata:
+        sys.exit(f"no metadata found for composer {composer_id}")
+
+    transcript = None
+    cursor_projects = Path.home() / ".cursor" / "projects"
+    if cursor_projects.exists():
+        for project_dir in cursor_projects.iterdir():
+            transcripts_dir = project_dir / "agent-transcripts"
+            if not transcripts_dir.exists():
+                continue
+            jsonl_path = transcripts_dir / composer_id / f"{composer_id}.jsonl"
+            txt_path = transcripts_dir / f"{composer_id}.txt"
+            if jsonl_path.exists():
+                transcript = str(jsonl_path)
+                break
+            if txt_path.exists():
+                transcript = str(txt_path)
+                break
+
+    output = _format_session(
+        id=composer_id,
+        tool="Cursor",
+        model=metadata.get("modelConfig", {}).get("modelName"),
+        start=_epoch_ms_to_iso(metadata.get("createdAt")),
+        end=_epoch_ms_to_iso(metadata.get("lastUpdatedAt")),
+        tokens={
+            "contextTokensUsed": metadata.get("contextTokensUsed"),
+            "contextTokenLimit": metadata.get("contextTokenLimit"),
+        },
+        transcript=transcript,
+    )
+    print(json.dumps(output, indent=2))
+
+
+def cmd_session(args):
+    workspace_path = args.workspace or "."
+    is_claude_code = os.environ.get("CLAUDECODE") == "1"
+
+    session_id = os.environ.get("CLAUDE_SESSION_ID")
+    if session_id:
+        _claude_code_session(session_id)
+        return
+
+    resolved = str(Path(workspace_path).resolve())
+    encoded = resolved.replace("/", "-")
+    project_dir = Path.home() / ".claude" / "projects" / encoded
+    if project_dir.exists() and list(project_dir.glob("*.jsonl")):
+        _claude_code_session_by_project(workspace_path)
+        return
+
+    if is_claude_code:
+        sys.exit(f"Claude Code session detected but no project directory at {project_dir}")
+
+    if _copilot_session(workspace_path):
+        return
+
+    _cursor_session(workspace_path)
+
+
+# ── install-cli ────────────────────────────────────────────────────────────
+
+def _resolve_source_script() -> Path:
+    plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if plugin_root:
+        candidate = Path(plugin_root) / "scripts" / "logbook"
+        if candidate.is_file():
+            return candidate.resolve()
+    return Path(__file__).resolve()
+
+
+def _path_contains(target_dir: Path) -> bool:
+    target = target_dir.resolve()
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry:
+            continue
+        try:
+            if Path(entry).expanduser().resolve() == target:
+                return True
+        except OSError:
+            continue
+    return False
+
+
+def cmd_install_cli(args):
+    source = _resolve_source_script()
+    target_dir = Path(args.dir).expanduser() if args.dir else (Path.home() / ".local" / "bin")
+    target = target_dir / "logbook"
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    wrapper = f'#!/usr/bin/env bash\nexec python3 "{source}" "$@"\n'
+
+    if target.exists() and target.read_text() == wrapper:
+        print(f"already installed: {target} -> {source}")
+    else:
+        target.write_text(wrapper)
+        target.chmod(0o755)
+        print(f"installed: {target} -> {source}")
+
+    if not _path_contains(target_dir):
+        print(f"warning: {target_dir} is not on $PATH — add it to your shell rc")
+
+
+# ── completions ────────────────────────────────────────────────────────────
+
+def cmd_completions(args):
+    if args.shell != "zsh":
+        sys.exit(f"only zsh is supported (got: {args.shell})")
+    if args.print_only:
+        sys.stdout.write(ZSH_COMPLETION)
+        return
+    target_dir = Path.home() / ".zsh" / "completions"
+    target = target_dir / "_logbook"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target.write_text(ZSH_COMPLETION)
+    print(f"wrote {target}")
+    print("ensure ~/.zshrc has: fpath=(~/.zsh/completions $fpath); autoload -Uz compinit && compinit")
+    print("then: exec zsh")
+
+
+# ── argparse ───────────────────────────────────────────────────────────────
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="logbook", description=__doc__)
+    sub = parser.add_subparsers(dest="cmd")
+
+    sp = sub.add_parser("session", help="print session info as JSON")
+    sp.add_argument("workspace", nargs="?", default=".", help="workspace path (default: cwd)")
+
+    sp = sub.add_parser("add-team", help="register a team retro git repo")
+    sp.add_argument("git_url")
+    sp.add_argument("--as", dest="team_name", default=None,
+                    help="local team nickname (default: derived from URL)")
+
+    sub.add_parser("device-id", help="print or generate the per-workstation device id")
+    sub.add_parser("config", help="print resolved logbook config")
+
+    sp = sub.add_parser("retro", help="retro subcommands")
+    retro_sub = sp.add_subparsers(dest="retro_cmd")
+
+    rp = retro_sub.add_parser("publish", help="commit and push a staged retro to a team repo")
+    rp.add_argument("category")
+    rp.add_argument("slug")
+    rp.add_argument("source_dir")
+    rp.add_argument("--team", default=None)
+
+    retro_sub.add_parser("template-path", help="print the absolute path to the retro template")
+
+    rc = retro_sub.add_parser("estimate-cost", help="estimate session cost from token counts")
+    rc.add_argument("input_tokens", type=int)
+    rc.add_argument("output_tokens", type=int)
+    rc.add_argument("cache_create", type=int)
+    rc.add_argument("cache_read", type=int)
+    rc.add_argument("--model", default=DEFAULT_MODEL,
+                    help=f"model name (default: {DEFAULT_MODEL}; supported: {', '.join(MODEL_PRICING)})")
+
+    sp = sub.add_parser("install-cli", help="drop a 'logbook' wrapper on PATH")
+    sp.add_argument("--dir", default=None,
+                    help="directory to install into (default: ~/.local/bin)")
+
+    sp = sub.add_parser("completions", help="install or print shell completions")
+    sp.add_argument("shell", choices=["zsh"], nargs="?", default="zsh")
+    sp.add_argument("--print", dest="print_only", action="store_true",
+                    help="print the script to stdout instead of installing")
+
+    args = parser.parse_args(argv)
+
+    if not args.cmd:
+        parser.print_help()
+        return
+
+    if args.cmd == "session":
+        cmd_session(args)
+    elif args.cmd == "add-team":
+        cmd_add_team(args)
+    elif args.cmd == "device-id":
+        cmd_device_id(args)
+    elif args.cmd == "config":
+        cmd_config(args)
+    elif args.cmd == "install-cli":
+        cmd_install_cli(args)
+    elif args.cmd == "completions":
+        cmd_completions(args)
+    elif args.cmd == "retro":
+        if args.retro_cmd == "publish":
+            cmd_retro_publish(args)
+        elif args.retro_cmd == "template-path":
+            cmd_retro_template_path(args)
+        elif args.retro_cmd == "estimate-cost":
+            cmd_estimate_cost(args)
+        else:
+            sp.print_help()
+
+
+if __name__ == "__main__":
+    main()
