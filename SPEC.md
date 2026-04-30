@@ -129,6 +129,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[COMP-3]` When invoked as `logbook completions zsh`, the CLI shall write the completion script to `~/.zsh/completions/_logbook`.
 - `[COMP-4]` Where the `--print` flag is passed, the CLI shall write the completion script to stdout instead of installing it.
 - `[COMP-5]` The completion script shall offer top-level subcommands and the `retro` subcommand's nested commands.
+- `[COMP-6]` The `install-cli` subcommand shall install the zsh completion script in addition to the wrapper, so a single invocation provisions both PATH access and tab completion.
 
 ---
 

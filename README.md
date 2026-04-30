@@ -22,7 +22,7 @@ logbook config                                        print resolved config
 logbook retro publish <category> <slug> <dir> [--team <t>]
 logbook retro template-path                           absolute path to retro template
 logbook retro estimate-cost <i> <o> <cc> <cr> [--model opus-4.7|opus-4.6|...]
-logbook install-cli [--dir <path>]                    drop a 'logbook' wrapper on PATH
+logbook install-cli [--dir <path>]                    install 'logbook' wrapper on PATH + zsh completions
 logbook completions zsh [--print]                     install/print zsh completions
 ```
 
@@ -38,11 +38,7 @@ For shell access (tab completion, direct CLI use outside Claude Code), run once:
 /logbook install-cli
 ```
 
-This drops a `logbook` wrapper at `~/.local/bin/logbook` that points at the installed plugin. Pass `--dir <path>` for a different install location. Then:
-
-```bash
-logbook completions zsh
-```
+This drops a `logbook` wrapper at `~/.local/bin/logbook` that points at the installed plugin and installs the zsh completion script to `~/.zsh/completions/_logbook`. Pass `--dir <path>` for a different wrapper install location. Then `exec zsh` to pick up completions.
 
 ## Onboarding (one-time per workstation)
 

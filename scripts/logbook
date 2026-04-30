@@ -9,7 +9,7 @@ Single-file CLI. Subcommands:
     retro publish <category> <slug> <dir> [--team <t>]
     retro template-path                           absolute path to retro template
     retro estimate-cost <i> <o> <cc> <cr> [--model opus-4.7|opus-4.6|...]
-    install-cli [--dir <path>]                    drop a 'logbook' wrapper on PATH
+    install-cli [--dir <path>]                    install 'logbook' wrapper on PATH + zsh completions
     completions zsh [--print]                     install/print zsh completions
 """
 from __future__ import annotations
@@ -969,8 +969,24 @@ def cmd_install_cli(args):
     if not _path_contains(target_dir):
         print(f"warning: {target_dir} is not on $PATH — add it to your shell rc")
 
+    _install_zsh_completions()
+
 
 # ── completions ────────────────────────────────────────────────────────────
+
+def _install_zsh_completions() -> Path:
+    target_dir = Path.home() / ".zsh" / "completions"
+    target = target_dir / "_logbook"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    if target.exists() and target.read_text() == ZSH_COMPLETION:
+        print(f"completions already installed: {target}")
+    else:
+        target.write_text(ZSH_COMPLETION)
+        print(f"wrote {target}")
+        print("ensure ~/.zshrc has: fpath=(~/.zsh/completions $fpath); autoload -Uz compinit && compinit")
+        print("then: exec zsh")
+    return target
+
 
 def cmd_completions(args):
     if args.shell != "zsh":
@@ -978,13 +994,7 @@ def cmd_completions(args):
     if args.print_only:
         sys.stdout.write(ZSH_COMPLETION)
         return
-    target_dir = Path.home() / ".zsh" / "completions"
-    target = target_dir / "_logbook"
-    target_dir.mkdir(parents=True, exist_ok=True)
-    target.write_text(ZSH_COMPLETION)
-    print(f"wrote {target}")
-    print("ensure ~/.zshrc has: fpath=(~/.zsh/completions $fpath); autoload -Uz compinit && compinit")
-    print("then: exec zsh")
+    _install_zsh_completions()
 
 
 # ── argparse ───────────────────────────────────────────────────────────────
@@ -1023,7 +1033,7 @@ def main(argv=None):
     rc.add_argument("--model", default=DEFAULT_MODEL,
                     help=f"model name (default: {DEFAULT_MODEL}; supported: {', '.join(MODEL_PRICING)})")
 
-    sp = sub.add_parser("install-cli", help="drop a 'logbook' wrapper on PATH")
+    sp = sub.add_parser("install-cli", help="install 'logbook' wrapper on PATH + zsh completions")
     sp.add_argument("--dir", default=None,
                     help="directory to install into (default: ~/.local/bin)")
 
