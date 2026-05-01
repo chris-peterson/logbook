@@ -16,6 +16,7 @@ A Claude Code plugin (and standalone CLI) that turns a coding session — Claude
 
 ```text
 logbook session                                       print session info as JSON
+logbook session-id                                    print only the active session's id (fast)
 logbook add-team <git-url> [--as <name>]              register a team retro repo
 logbook device-id                                     print/persist per-workstation id
 logbook config                                        print resolved config

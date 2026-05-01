@@ -3,6 +3,7 @@
 
 Single-file CLI. Subcommands:
     session                                       print session info as JSON
+    session-id                                    print only the active session's id (fast)
     add-team <git-url> [--as <name>]              register a team retro repo
     device-id                                     print/persist per-workstation id
     config                                        print resolved config
@@ -45,6 +46,7 @@ ZSH_COMPLETION = r"""#compdef logbook
 _logbook() {
   local -a commands=(
     'session:print session info as JSON'
+    'session-id:print only the active session id (fast)'
     'add-team:register a team retro git repo'
     'device-id:print or generate the per-workstation device id'
     'config:print resolved logbook config'
@@ -927,6 +929,25 @@ def cmd_session(args):
     _cursor_session(workspace_path)
 
 
+def cmd_session_id(args):
+    session_id = os.environ.get("CLAUDE_SESSION_ID")
+    if session_id:
+        print(session_id)
+        return
+
+    workspace_path = str(Path(args.workspace or ".").resolve())
+    encoded = workspace_path.replace("/", "-")
+    project_dir = Path.home() / ".claude" / "projects" / encoded
+    if not project_dir.exists():
+        sys.exit(f"no Claude Code session detected: project directory not found at {project_dir}")
+
+    jsonl_files = sorted(project_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not jsonl_files:
+        sys.exit(f"no Claude Code session detected: no session files in {project_dir}")
+
+    print(jsonl_files[0].stem)
+
+
 # ── install-cli ────────────────────────────────────────────────────────────
 
 def _resolve_source_script() -> Path:
@@ -1006,6 +1027,9 @@ def main(argv=None):
     sp = sub.add_parser("session", help="print session info as JSON")
     sp.add_argument("workspace", nargs="?", default=".", help="workspace path (default: cwd)")
 
+    sp = sub.add_parser("session-id", help="print only the active session's id (fast)")
+    sp.add_argument("workspace", nargs="?", default=".", help="workspace path (default: cwd)")
+
     sp = sub.add_parser("add-team", help="register a team retro git repo")
     sp.add_argument("git_url")
     sp.add_argument("--as", dest="team_name", default=None,
@@ -1050,6 +1074,8 @@ def main(argv=None):
 
     if args.cmd == "session":
         cmd_session(args)
+    elif args.cmd == "session-id":
+        cmd_session_id(args)
     elif args.cmd == "add-team":
         cmd_add_team(args)
     elif args.cmd == "device-id":

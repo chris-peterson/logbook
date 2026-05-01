@@ -46,7 +46,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 ## CLI — Surface and Subcommands
 
 - `[CLI-1]` The system shall expose a single executable named `logbook` that accepts subcommands.
-- `[CLI-2]` The CLI shall support the subcommands `session`, `add-team`, `device-id`, `config`, `retro`, and `completions`.
+- `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `add-team`, `device-id`, `config`, `retro`, and `completions`.
 - `[CLI-3]` The `retro` subcommand shall support the nested subcommands `publish`, `template-path`, and `estimate-cost`.
 - `[CLI-4]` When invoked with no subcommand, the CLI shall print top-level help to stdout and exit zero.
 - `[CLI-5]` The CLI shall be runnable directly via `python3 <path>/logbook <args>` without prior installation.
@@ -68,6 +68,8 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[SES-7]` While no Claude Code or Copilot session is detected, when a Cursor workspace storage entry exists for the current workspace, the CLI shall report the focused Cursor composer session.
 - `[SES-8]` For Claude Code sessions, the JSON output shall include a `detailed` block with at least `tool_usage`, `files_touched`, `timeline`, `user_messages`, `overlapping_sessions`, and `initial_context_tokens`.
 - `[SES-9]` If no session can be detected, then the CLI shall exit with a non-zero status and an actionable error.
+- `[SES-10]` When invoked as `logbook session-id`, the CLI shall write only the active session's identifier followed by a newline to stdout, without parsing the session transcript or computing the `detailed` block.
+- `[SES-11]` The `session-id` subcommand shall use the same detection precedence as `session` (`CLAUDE_SESSION_ID` env, then most recently modified Claude Code session for the current workspace), and shall exit with a non-zero status and an actionable error if no Claude Code session is detected.
 
 ---
 
