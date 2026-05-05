@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#282a36"/>
+  <rect x="16" y="10" width="32" height="44" rx="2" fill="#f8f8f2"/>
+  <rect x="13" y="10" width="6" height="44" rx="1" fill="#bd93f9"/>
+  <circle cx="16" cy="16" r="1.5" fill="#282a36"/>
+  <circle cx="16" cy="24" r="1.5" fill="#282a36"/>
+  <circle cx="16" cy="32" r="1.5" fill="#282a36"/>
+  <circle cx="16" cy="40" r="1.5" fill="#282a36"/>
+  <circle cx="16" cy="48" r="1.5" fill="#282a36"/>
+  <line x1="22" y1="20" x2="42" y2="20" stroke="#8be9fd" stroke-width="1.6"/>
+  <line x1="22" y1="26" x2="38" y2="26" stroke="#6272a4" stroke-width="1.2"/>
+  <line x1="22" y1="32" x2="42" y2="32" stroke="#6272a4" stroke-width="1.2"/>
+  <line x1="22" y1="38" x2="36" y2="38" stroke="#6272a4" stroke-width="1.2"/>
+  <line x1="22" y1="44" x2="42" y2="44" stroke="#6272a4" stroke-width="1.2"/>
+  <circle cx="48" cy="48" r="8" fill="#50fa7b"/>
+  <path d="M44 48 L47 51 L52 45" stroke="#282a36" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

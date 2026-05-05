@@ -4,98 +4,55 @@ A log of important learnings, e.g. AI-assisted coding session retros.
 
 A Claude Code plugin (and standalone CLI) that turns a coding session — Claude Code, Cursor, or GitHub Copilot — into a retrospective committed to a team-owned git repository. Transcripts stay on the author's workstation; only the retro is published.
 
-## Surfaces
+📖 **End-user docs:** https://chris-peterson.github.io/logbook
 
-| Surface | What it is |
-|---|---|
-| `/logbook <subcommand>` | Slash command that maps directly to the CLI (deterministic ops) |
-| `/logbook:retro`        | Skill that gathers retro content conversationally and publishes via the CLI |
-| `logbook` (shell)       | Same CLI, runnable from any terminal |
-
-## CLI
+## Repo layout
 
 ```text
-logbook session                                       print session info as JSON
-logbook session-id                                    print only the active session's id (fast)
-logbook add-team <git-url> [--as <name>]              register a team retro repo
-logbook device-id                                     print/persist per-workstation id
-logbook config                                        print resolved config
-logbook retro publish <category> <slug> <dir> [--team <t>]
-logbook retro template-path                           absolute path to retro template
-logbook retro estimate-cost <i> <o> <cc> <cr> [--model opus-4.7|opus-4.6|...]
-logbook install-cli [--dir <path>]                    install 'logbook' wrapper on PATH + zsh completions
-logbook completions zsh [--print]                     install/print zsh completions
+.claude-plugin/plugin.json   plugin manifest
+commands/logbook.md          /logbook slash command (maps to the CLI)
+skills/retro/                /logbook:retro skill (conversational retro authoring)
+skills/session-id/           /logbook:session-id skill
+scripts/logbook              the CLI — single Python file, stdlib + PyYAML
+templates/retro.md           retro template (frontmatter + section scaffolding)
+docs/                        end-user docs site (docsify, GitHub Pages)
+SPEC.md                      formal requirements (EARS syntax)
 ```
 
-## Install
+## Dev setup
 
-```text
-/plugin install logbook
+```bash
+python3 --version            # 3.10+
+pip install pyyaml
 ```
 
-For shell access (tab completion, direct CLI use outside Claude Code), run once:
+Run the CLI directly from source — no install needed:
 
-```text
-/logbook install-cli
+```bash
+python3 scripts/logbook --help
 ```
 
-This drops a `logbook` wrapper at `~/.local/bin/logbook` that points at the installed plugin and installs the zsh completion script to `~/.zsh/completions/_logbook`. Pass `--dir <path>` for a different wrapper install location. Then `exec zsh` to pick up completions.
+The CLI resolves the plugin root from `CLAUDE_PLUGIN_ROOT` (set by Claude Code when running as a plugin) or falls back to the script's filesystem location.
 
-## Onboarding (one-time per workstation)
+## Try the plugin locally
 
-1. Your team creates an empty git repo for retros (e.g. `git@github.com:teamX/retros.git`). Members need push access.
-2. Register it:
-   ```text
-   /logbook add-team git@github.com:teamX/retros.git
-   ```
-   Clones to `~/.logbook/repos/<team>/` and sets it as default.
-3. Run `/logbook:retro` after a session. The skill gathers content, writes the retro, and publishes to the team repo.
-
-## Configuration
-
-`~/.logbook/config.yaml` is created by `logbook add-team`:
-
-```yaml
-default_team: teamX
-teams:
-  teamX:
-    remote: git@github.com:teamX/retros.git
+```bash
+claude --plugin-dir .
 ```
 
-## Layout in the team repo
+Launches Claude Code with the working tree mounted as a plugin.
 
-```text
-retros/
-├── debugging/
-│   └── pwsh-gitlab-get-changerequest-bug/
-│       └── index.md
-├── new-feature/
-│   └── apps-pages-mcp-server/
-│       └── index.md
-└── ...
+## Docs
+
+```bash
+just docs
 ```
 
-Categories are chosen by the team — they live as directory names, with no enforced list.
+Serves the docsify site at `docs/` locally. Deployed to GitHub Pages on push to `main` via `.github/workflows/deploy-docs.yml`.
 
-## Privacy model
+## Specification
 
-- Transcripts are **never** published to the team repo. The team repo gets the retro `index.md` only.
-- The retro frontmatter includes `session_id` and `device_id` so an author can correlate a published retro to their local session data.
-- The CLI does not read or modify session transcripts. Transcript handling is the caller's responsibility (e.g. an ai-sdlc-side hook).
-
-## Multiple teams on one workstation
-
-```text
-/logbook add-team git@github.com:teamY/retros.git --as teamY
-```
-
-Override the default at retro time by passing `--team teamY` to the publish call.
-
-## Requirements
-
-- Python 3.10+
-- `pyyaml`: `pip install pyyaml`
-- `git` on PATH with push access to the team retro remote
+[SPEC.md](SPEC.md) — formal requirements in [EARS syntax](https://alistairmavin.com/ears) covering CLI, config, retro generation, publishing, privacy, install, completions, cost estimation, and session detection.
 
 ## License
 

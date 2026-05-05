@@ -1,0 +1,3 @@
+- [Home](/)
+- [CLI reference](/cli)
+- [Requirements](/SPEC.md)
