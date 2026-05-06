@@ -668,12 +668,77 @@ def _find_overlapping_sessions(session_id, start, end, current_project_dir=None)
     return overlapping
 
 
-def _claude_code_session(session_id):
+def _transcript_for_session(session_id):
     pattern = str(Path.home() / ".claude" / "projects" / "*" / f"{session_id}.jsonl")
     matches = glob.glob(pattern)
-    transcript = matches[0] if matches else None
-    stats = _parse_claude_transcript(transcript) if transcript else {}
+    return matches[0] if matches else None
 
+
+def _active_claude_pid():
+    """Walk up the process tree to the nearest `claude` ancestor PID."""
+    try:
+        pid = os.getppid()
+    except OSError:
+        return None
+    while pid and pid > 1:
+        try:
+            comm = subprocess.check_output(
+                ["ps", "-p", str(pid), "-o", "comm="], text=True, stderr=subprocess.DEVNULL,
+            ).strip()
+            ppid = subprocess.check_output(
+                ["ps", "-p", str(pid), "-o", "ppid="], text=True, stderr=subprocess.DEVNULL,
+            ).strip()
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return None
+        if comm == "claude" or comm.endswith("/claude"):
+            return pid
+        if not ppid:
+            return None
+        next_pid = int(ppid)
+        if next_pid in (0, pid):
+            return None
+        pid = next_pid
+    return None
+
+
+def _resolve_active_claude_session(workspace_path):
+    """Resolve the active Claude Code session.
+
+    Precedence:
+      1. CLAUDE_CODE_SESSION_ID env (set in every Claude Code subprocess).
+      2. Walk up to the nearest `claude` ancestor and read ~/.claude/sessions/<pid>.json.
+      3. Most-recently-modified .jsonl in the cwd-derived project dir.
+
+    Returns (session_id, transcript_path) or None if no session is detectable.
+    """
+    session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
+    if session_id:
+        return session_id, _transcript_for_session(session_id)
+
+    pid = _active_claude_pid()
+    if pid:
+        session_record = Path.home() / ".claude" / "sessions" / f"{pid}.json"
+        if session_record.exists():
+            try:
+                rec = json.loads(session_record.read_text())
+                sid = rec.get("sessionId")
+                if sid:
+                    return sid, _transcript_for_session(sid)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    encoded = str(Path(workspace_path).resolve()).replace("/", "-")
+    project_dir = Path.home() / ".claude" / "projects" / encoded
+    if project_dir.exists():
+        jsonl_files = sorted(project_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
+        if jsonl_files:
+            return jsonl_files[0].stem, str(jsonl_files[0])
+
+    return None
+
+
+def _print_claude_session(session_id, transcript):
+    stats = _parse_claude_transcript(transcript) if transcript else {}
     output = _format_session(
         id=session_id,
         name=stats.get("name"),
@@ -686,35 +751,6 @@ def _claude_code_session(session_id):
     )
     if transcript:
         output["detailed"] = _extract_claude_detailed(session_id, transcript)
-    print(json.dumps(output, indent=2))
-
-
-def _claude_code_session_by_project(workspace_path):
-    workspace_path = str(Path(workspace_path).resolve())
-    encoded = workspace_path.replace("/", "-")
-    project_dir = Path.home() / ".claude" / "projects" / encoded
-    if not project_dir.exists():
-        sys.exit(f"project directory not found: {project_dir}")
-
-    jsonl_files = sorted(project_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
-    if not jsonl_files:
-        sys.exit(f"no session files found in {project_dir}")
-
-    transcript = str(jsonl_files[0])
-    session_id = jsonl_files[0].stem
-    stats = _parse_claude_transcript(transcript)
-
-    output = _format_session(
-        id=session_id,
-        name=stats.get("name"),
-        tool="Claude Code",
-        model=stats.get("model"),
-        start=stats.get("createdAt"),
-        end=stats.get("lastUpdatedAt"),
-        tokens=stats.get("tokens"),
-        transcript=transcript,
-    )
-    output["detailed"] = _extract_claude_detailed(session_id, transcript)
     print(json.dumps(output, indent=2))
 
 
@@ -914,22 +950,13 @@ def _cursor_session(workspace_path):
 
 def cmd_session(args):
     workspace_path = args.workspace or "."
-    is_claude_code = os.environ.get("CLAUDECODE") == "1"
-
-    session_id = os.environ.get("CLAUDE_SESSION_ID")
-    if session_id:
-        _claude_code_session(session_id)
+    resolved = _resolve_active_claude_session(workspace_path)
+    if resolved:
+        _print_claude_session(*resolved)
         return
 
-    resolved = str(Path(workspace_path).resolve())
-    encoded = resolved.replace("/", "-")
-    project_dir = Path.home() / ".claude" / "projects" / encoded
-    if project_dir.exists() and list(project_dir.glob("*.jsonl")):
-        _claude_code_session_by_project(workspace_path)
-        return
-
-    if is_claude_code:
-        sys.exit(f"Claude Code session detected but no project directory at {project_dir}")
+    if os.environ.get("CLAUDECODE") == "1":
+        sys.exit("Claude Code session detected but no transcript could be located")
 
     if _copilot_session(workspace_path):
         return
@@ -938,22 +965,10 @@ def cmd_session(args):
 
 
 def cmd_session_id(args):
-    session_id = os.environ.get("CLAUDE_SESSION_ID")
-    if session_id:
-        print(session_id)
-        return
-
-    workspace_path = str(Path(args.workspace or ".").resolve())
-    encoded = workspace_path.replace("/", "-")
-    project_dir = Path.home() / ".claude" / "projects" / encoded
-    if not project_dir.exists():
-        sys.exit(f"no Claude Code session detected: project directory not found at {project_dir}")
-
-    jsonl_files = sorted(project_dir.glob("*.jsonl"), key=lambda f: f.stat().st_mtime, reverse=True)
-    if not jsonl_files:
-        sys.exit(f"no Claude Code session detected: no session files in {project_dir}")
-
-    print(jsonl_files[0].stem)
+    resolved = _resolve_active_claude_session(args.workspace or ".")
+    if not resolved:
+        sys.exit("no Claude Code session detected")
+    print(resolved[0])
 
 
 # ── install-cli ────────────────────────────────────────────────────────────

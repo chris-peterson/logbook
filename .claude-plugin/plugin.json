@@ -1,6 +1,6 @@
 {
   "name": "logbook",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A log of important learnings, e.g. AI-assisted coding session retros.",
   "keywords": ["retrospective", "ai", "session", "claude-code"],
   "license": "MIT"
