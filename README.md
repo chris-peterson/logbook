@@ -30,9 +30,10 @@ Run the CLI directly from source — no install needed:
 
 ```bash
 python3 scripts/logbook --help
+python3 scripts/logbook --version
 ```
 
-The CLI resolves the plugin root from `CLAUDE_PLUGIN_ROOT` (set by Claude Code when running as a plugin) or falls back to the script's filesystem location.
+The CLI resolves the plugin root from `CLAUDE_PLUGIN_ROOT` (set by Claude Code when running as a plugin) or falls back to the script's filesystem location. `--version` reads the installed version from `.claude-plugin/plugin.json` (the single source of truth).
 
 ## Try the plugin locally
 

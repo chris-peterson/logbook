@@ -33,6 +33,14 @@ from urllib.parse import unquote
 
 
 PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT") or Path(__file__).resolve().parent.parent)
+
+
+def _plugin_version() -> str:
+    """Read the plugin's version from .claude-plugin/plugin.json. Single source
+    of truth — never hardcode a version constant in code."""
+    return json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text())["version"]
+
+
 LOGBOOK_HOME = Path(os.environ.get("LOGBOOK_HOME") or (Path.home() / ".logbook"))
 REPOS_DIR = LOGBOOK_HOME / "repos"
 CONFIG_PATH = LOGBOOK_HOME / "config.yaml"
@@ -1022,6 +1030,8 @@ def cmd_completions(args):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="logbook", description=__doc__)
+    parser.add_argument("--version", "-v", action="version",
+                        version=f"logbook {_plugin_version()}")
     sub = parser.add_subparsers(dest="cmd")
 
     sp = sub.add_parser("session", help="print session info as JSON")

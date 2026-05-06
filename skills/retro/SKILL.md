@@ -6,13 +6,17 @@ argument-hint: "[category]"
 
 # `/logbook:retro`
 
-Generate a retrospective for the current session and publish it to the team retro repo configured via `/logbook add-team`.
+Generate a retrospective for the current session and publish it to the team retro repo configured via `/logbook:logbook add-team`.
 
 The skill orchestrates user-facing decisions; deterministic operations defer to the `logbook` CLI. Run any CLI invocation as:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/logbook" <subcommand> [args]
 ```
+
+## Pre-flight: CLI freshness check
+
+Before running the steps below, compare `logbook --version` against the plugin version in `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`. If they differ, surface a one-line note and offer `/logbook:logbook install-cli` to refresh the shell wrapper. If `logbook` isn't on PATH, skip silently.
 
 ## Step 0: Identify the session
 
