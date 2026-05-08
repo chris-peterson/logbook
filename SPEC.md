@@ -54,22 +54,24 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[CLI-7]` Where `CLAUDE_PLUGIN_ROOT` is unset, the CLI shall resolve the plugin root from the script's filesystem location (`__file__`).
 - `[CLI-8]` The CLI shall be a single Python source file with no project-internal imports beyond the Python standard library and PyYAML.
 - `[CLI-9]` If a subcommand fails, then the CLI shall exit with a non-zero status and write a one-line actionable error to stderr.
+- `[CLI-10]` When invoked as `logbook --version` or `logbook -v`, the CLI shall print the value of `<plugin-root>/.claude-plugin/plugin.json#version` and exit zero.
 
 ---
 
 ## SES — Session Info
 
 - `[SES-1]` When invoked as `logbook session`, the CLI shall emit a JSON object on stdout describing the active AI coding session for the current workspace.
-- `[SES-2]` The session JSON shall contain at minimum the keys `id`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`.
+- `[SES-2]` The session JSON shall contain at minimum the keys `id`, `name`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`. (`name` is the cleaned first user prompt; `slug` is its slugified form — see [SES-3].)
 - `[SES-3]` The session JSON shall contain a `slug` field derived from the session's first user prompt.
 - `[SES-4]` Where `CLAUDE_CODE_SESSION_ID` is set, the CLI shall report the Claude Code session matching that id.
 - `[SES-5]` While `CLAUDE_CODE_SESSION_ID` is unset, the CLI shall walk its own process ancestry to the nearest `claude` process and, if `~/.claude/sessions/<pid>.json` exists for that PID, report the session named in that record. If no `claude` ancestor or session record is found, the CLI shall fall back to the most-recently-modified `.jsonl` in the cwd-derived project directory under `~/.claude/projects/`.
 - `[SES-6]` While no Claude Code session is detected, when a VS Code workspace storage entry contains GitHub Copilot chat sessions for the current workspace, the CLI shall report the latest Copilot session.
 - `[SES-7]` While no Claude Code or Copilot session is detected, when a Cursor workspace storage entry exists for the current workspace, the CLI shall report the focused Cursor composer session.
-- `[SES-8]` For Claude Code sessions, the JSON output shall include a `detailed` block with at least `tool_usage`, `files_touched`, `timeline`, `user_messages`, `overlapping_sessions`, and `initial_context_tokens`.
+- `[SES-8]` For Claude Code sessions, the JSON output shall include a `detailed` block with at least `tool_usage`, `files_touched`, `timeline`, `user_messages`, `overlapping_sessions`, and `initial_context_tokens`. The `detailed` block may additionally include `compaction` (event timestamps and line numbers) and `git_activity` (commit timeline across detected repos for the last 7 days) when the relevant data is present.
 - `[SES-9]` If no session can be detected, then the CLI shall exit with a non-zero status and an actionable error.
 - `[SES-10]` When invoked as `logbook session-id`, the CLI shall write only the active session's identifier followed by a newline to stdout, without parsing the session transcript or computing the `detailed` block.
 - `[SES-11]` The `session-id` subcommand shall use the same detection precedence as `session` (`CLAUDE_CODE_SESSION_ID` env, then `claude`-ancestor PID lookup via `~/.claude/sessions/<pid>.json`, then most recently modified Claude Code session for the current workspace), and shall exit with a non-zero status and an actionable error if no Claude Code session is detected.
+- `[SES-12]` Copilot and Cursor session detection ([SES-6], [SES-7]) is currently implemented for macOS only — the implementation reads from paths under `~/Library/Application Support/`. Behavior on other platforms is undefined.
 
 ---
 
@@ -113,14 +115,16 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 
 - `[INST-1]` The system shall be distributable as a Claude Code plugin.
 - `[INST-2]` The plugin shall declare itself in `.claude-plugin/plugin.json` with at minimum `name`, `version`, `description`, and `license`.
-- `[INST-3]` The plugin shall expose a slash command at `commands/logbook.md` that maps `/logbook <args>` to the underlying CLI.
-- `[INST-4]` The plugin shall expose a skill at `skills/retro/SKILL.md` for conversational retro authoring; the skill shall defer all deterministic operations to the CLI.
+- `[INST-3]` The plugin shall expose a slash command at `commands/logbook.md` that maps `/logbook:logbook <args>` to the underlying CLI.
+- `[INST-4]` The plugin shall expose one or more skills under `skills/`; each skill shall defer all deterministic operations to the CLI.
 - `[INST-5]` When invoked as `logbook add-team <git-url>`, the CLI shall clone the URL into `<LOGBOOK_HOME>/repos/<team>/` where `<team>` is derived from the URL basename or supplied via `--as <name>`.
 - `[INST-6]` On the first `logbook add-team` invocation, the CLI shall create `<LOGBOOK_HOME>/config.yaml` and set the new team as `default_team`.
 - `[INST-7]` On subsequent `logbook add-team` invocations, the CLI shall add the new team to `teams` without changing `default_team`.
 - `[INST-8]` If the local clone path for a team already exists, then `logbook add-team` shall exit with a non-zero status before performing any git operations.
 - `[INST-9]` If `git clone` fails, then `logbook add-team` shall exit with a non-zero status and an actionable error.
 - `[INST-10]` Team names shall match the pattern `^[a-z0-9][a-z0-9_-]*$`. If the supplied or derived name does not match, then the CLI shall exit with a non-zero status.
+- `[INST-11]` When invoked as `logbook install-cli [--dir <path>]`, the CLI shall write a bash wrapper to `<path>/logbook` (default `~/.local/bin/logbook`) that execs `python3 <plugin-root>/scripts/logbook "$@"`, and shall also install zsh completions per [COMP-3].
+- `[INST-12]` The plugin shall register a `SessionStart` hook that detects drift between the installed `logbook` CLI wrapper version and `<plugin-root>/.claude-plugin/plugin.json#version`, and surfaces an `additionalContext` notice when they differ. The hook shall be silent when versions match and silent when the CLI is not on PATH.
 
 ---
 
