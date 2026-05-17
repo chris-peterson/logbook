@@ -1,5 +1,5 @@
 - [Home](/)
-- Skills
+- [Skills](/skills)
   - [retro](/skills/retro)
   - [note](/skills/note)
   - [session-id](/skills/session-id)
