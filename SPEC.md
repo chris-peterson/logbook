@@ -18,6 +18,7 @@ Requirements use [EARS syntax](https://alistairmavin.com/ears) with formal requi
 | `COMP` | Shell completions |
 | `COST` | Cost estimation |
 | `SES`  | Session info detection |
+| `NOTE` | The `/logbook:note` mid-session observation skill |
 
 ---
 
@@ -116,7 +117,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[INST-1]` The system shall be distributable as a Claude Code plugin.
 - `[INST-2]` The plugin shall declare itself in `.claude-plugin/plugin.json` with at minimum `name`, `version`, `description`, and `license`.
 - `[INST-3]` The plugin shall expose a slash command at `commands/logbook.md` that maps `/logbook:logbook <args>` to the underlying CLI.
-- `[INST-4]` The plugin shall expose one or more skills under `skills/`; each skill shall defer all deterministic operations to the CLI.
+- `[INST-4]` The plugin shall expose one or more skills under `skills/`; each skill shall defer deterministic operations to the CLI rather than reimplementing them. Skills that are purely conversational orchestrators with no deterministic operations are permitted.
 - `[INST-5]` When invoked as `logbook add-team <git-url>`, the CLI shall clone the URL into `<LOGBOOK_HOME>/repos/<team>/` where `<team>` is derived from the URL basename or supplied via `--as <name>`.
 - `[INST-6]` On the first `logbook add-team` invocation, the CLI shall create `<LOGBOOK_HOME>/config.yaml` and set the new team as `default_team`.
 - `[INST-7]` On subsequent `logbook add-team` invocations, the CLI shall add the new team to `teams` without changing `default_team`.
@@ -147,6 +148,17 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[COST-4]` The CLI shall recognize at minimum the model identifiers `opus-4.7`, `opus-4.6`, `sonnet-4.6`, `haiku-4.5`.
 - `[COST-5]` If an unknown model is requested, then the CLI shall exit with a non-zero status and list the supported models.
 - `[COST-6]` Where the supplied model identifier contains the `claude-` prefix or differs only by separator, the CLI shall normalize and accept it.
+
+---
+
+## NOTE — Mid-Session Observation Skill
+
+- `[NOTE-1]` The plugin shall expose a `note` skill at `skills/note/SKILL.md` that captures a mid-session observation about a target artifact (a rule, skill, `CLAUDE.md`, recipe, setting, or similar).
+- `[NOTE-2]` When invoked, the skill shall identify the target artifact from the observation. If multiple plausible targets exist, then the skill shall list the candidates and ask the user before proceeding.
+- `[NOTE-3]` The skill shall offer exactly three modes — `act`, `defer`, `log` — propose a default based on target location and observation scope, and confirm the chosen mode with the user before acting.
+- `[NOTE-4]` In `act` mode, the skill shall apply the change in the current session and shall sweep comparable sites per the `sweep-the-learnings` rule, reporting affected sites before returning to prior work.
+- `[NOTE-5]` In `defer` mode, where iTerm2 is available the skill shall open a new tab via `osascript` and launch `claude` with a prompt pre-loaded from a temp file. Otherwise the skill shall print the equivalent command for the user to run manually.
+- `[NOTE-6]` In `log` mode, the skill shall not modify any files and shall not spawn any session — it shall emit only a structured markdown note to stdout.
 
 ---
 

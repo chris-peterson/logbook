@@ -4,9 +4,9 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-05-08
+**Last audit:** 2026-05-17
 **Spec version:** v0.1
-**Coverage:** 64 / 64 normative requirements (100%) + 7 deferred
+**Coverage:** 70 / 70 normative requirements (100%) + 7 deferred
 
 ## Status by category
 
@@ -21,8 +21,22 @@ revised.
 | INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
 | COST | 6 | All Covered | `scripts/logbook` retro estimate-cost |
+| NOTE | 6 | All Covered | `skills/note/SKILL.md` |
 
 ## Audit history
+
+### 2026-05-17 — `note` skill spec'd, INST-4 relaxed
+
+Triggered by adding the `/logbook:note` skill (commit `9c5b38d`). The skill ships behavior the spec didn't describe and doesn't route through the `logbook` CLI — both issues addressed in this pass.
+
+- **Spec edits applied (SPEC.md)**
+  - `[INST-4]` relaxed: previous wording required "each skill shall defer **all** deterministic operations to the CLI." Reworded to defer deterministic operations *rather than reimplementing them*, and to explicitly permit skills that are purely conversational orchestrators with no deterministic operations. `note` is the first such skill.
+  - New `NOTE` category added with `[NOTE-1]`..`[NOTE-6]` covering: skill location and purpose, target identification with disambiguation, the three-mode contract (`act`/`defer`/`log`) with default proposal and confirmation, and per-mode behavior (`act` sweeps comparable sites; `defer` uses iTerm2 via `osascript` or prints the fallback command; `log` modifies nothing and emits only).
+  - Prefix table updated to list `NOTE`.
+
+- **Coverage delta**
+  - 64 → 70 normative requirements.
+  - All sampled prior requirements (CFG-7, CFG-11, CLI-10, SES-4/5/11, PUB-5..10, INST-12, COST-3/4) remain covered. The only commit since the previous audit was additive.
 
 ### 2026-05-08 — First post-bootstrap audit
 
