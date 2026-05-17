@@ -25,8 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/configure-pages@v5
-      - name: Copy SPEC.md into docs
-        run: cp SPEC.md docs/SPEC.md
+      - name: Copy SPEC.md and skill docs into docs
+        run: |
+          cp SPEC.md docs/SPEC.md
+          mkdir -p docs/skills
+          for skill in skills/*/SKILL.md; do
+            name=$(basename "$(dirname "$skill")")
+            awk '/^---$/{fm++; next} fm>=2' "$skill" > "docs/skills/$name.md"
+          done
       - uses: actions/upload-pages-artifact@v4
         with:
           path: docs

@@ -1,3 +1,7 @@
 - [Home](/)
+- Skills
+  - [retro](/skills/retro)
+  - [note](/skills/note)
+  - [session-id](/skills/session-id)
 - [CLI reference](/cli)
 - [Requirements](/SPEC.md)

@@ -9,8 +9,8 @@ logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on 
 | Surface | What it is |
 |---|---|
 | `/logbook <subcommand>` | Slash command that maps directly to the CLI (deterministic ops) |
-| `/logbook:retro`        | Skill that gathers retro content conversationally and publishes via the CLI |
-| `/logbook:note`         | Skill that captures a mid-session observation, then acts, defers to a fresh session, or logs only |
+| [`/logbook:retro`](/skills/retro) | Skill that gathers retro content conversationally and publishes via the CLI |
+| [`/logbook:note`](/skills/note)   | Skill that captures a mid-session observation, then acts, defers to a fresh session, or logs only |
 | `logbook` (shell)       | Same CLI, runnable from any terminal |
 
 ## Quickstart
@@ -56,5 +56,6 @@ logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on 
 
 ## Reference
 
+- **Skills** — see the sidebar for per-skill pages (sourced directly from each skill's `SKILL.md`)
 - **[CLI reference](/cli)** — full subcommand surface, configuration, multi-team setup
 - **Prerequisites** — Python 3.10+, `pyyaml`, `git` on PATH with push access to the team retro remote
