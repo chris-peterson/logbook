@@ -10,6 +10,7 @@ logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on 
 |---|---|
 | `/logbook <subcommand>` | Slash command that maps directly to the CLI (deterministic ops) |
 | `/logbook:retro`        | Skill that gathers retro content conversationally and publishes via the CLI |
+| `/logbook:note`         | Skill that captures a mid-session observation, then acts, defers to a fresh session, or logs only |
 | `logbook` (shell)       | Same CLI, runnable from any terminal |
 
 ## Quickstart

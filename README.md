@@ -12,6 +12,7 @@ A Claude Code plugin (and standalone CLI) that turns a coding session — Claude
 .claude-plugin/plugin.json   plugin manifest
 commands/logbook.md          /logbook slash command (maps to the CLI)
 skills/retro/                /logbook:retro skill (conversational retro authoring)
+skills/note/                 /logbook:note skill (mid-session observation: act, defer, or log)
 skills/session-id/           /logbook:session-id skill
 scripts/logbook              the CLI — single Python file, stdlib + PyYAML
 templates/retro.md           retro template (frontmatter + section scaffolding)
