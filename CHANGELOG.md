@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0
+
+### Features
+- New `/logbook:note` skill for capturing mid-session observations. When something isn't working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — `note` captures it and offers three responses: act now (apply + sweep comparable sites), defer to a fresh session targeting the affected repo, or log only. Pairs with `/logbook:retro`: retro reflects after the voyage, `note` captures mid-voyage.
+- Hosted docs site now has a Skills landing page that lists every skill with a one-line "use when..." hook, reachable from the sidebar.
+
+### Other
+- Skill docs pages are now generated from each `skills/<name>/SKILL.md` at build time (mirrors the existing `SPEC.md` pattern), so the hosted docs no longer drift from the source skill files.
+- SPEC backfilled to cover behavior that shipped in 0.3.x and 0.4.0 (`--version`, `install-cli` semantics, `SessionStart` freshness hook, Copilot/Cursor detection scope). Added a per-category coverage tracker in `STATUS.md`.
+
 ## 0.4.0
 
 ### Features
