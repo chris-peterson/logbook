@@ -155,10 +155,13 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 
 - `[NOTE-1]` The plugin shall expose a `note` skill at `skills/note/SKILL.md` that captures a mid-session observation about a target artifact (a rule, skill, `CLAUDE.md`, recipe, setting, or similar).
 - `[NOTE-2]` When invoked, the skill shall identify the target artifact from the observation. If multiple plausible targets exist, then the skill shall list the candidates and ask the user before proceeding.
-- `[NOTE-3]` The skill shall offer exactly three modes — `act`, `defer`, `log` — propose a default based on target location and observation scope, and confirm the chosen mode with the user before acting.
-- `[NOTE-4]` In `act` mode, the skill shall apply the change in the current session and shall sweep comparable sites per the `sweep-the-learnings` rule, reporting affected sites before returning to prior work.
-- `[NOTE-5]` In `defer` mode, where iTerm2 is available the skill shall open a new tab via `osascript` and launch `claude` with a prompt pre-loaded from a temp file. Otherwise the skill shall print the equivalent command for the user to run manually.
-- `[NOTE-6]` In `log` mode, the skill shall not modify any files and shall not spawn any session — it shall emit only a structured markdown note to stdout.
+- `[NOTE-3]` The skill shall offer exactly three modes — `now`, `parallel`, `log` — propose a default based on target location and observation scope, and confirm the chosen mode with the user before acting.
+- `[NOTE-4]` In `now` mode, the skill shall apply the change in the current session and shall sweep comparable sites per the `sweep-the-learnings` rule, reporting affected sites before returning to prior work.
+- `[NOTE-5]` In `parallel` mode, where iTerm2 is available the skill shall open a new tab via `osascript` and launch `claude` with a prompt pre-loaded from a temp file. Otherwise the skill shall print the equivalent command for the user to run manually.
+- `[NOTE-6]` In `log` mode, the skill shall not modify the target artifact and shall not spawn any session.
+- `[NOTE-7]` In `log` mode, the skill shall write the structured note body to a unique temporary file and print the path so the user can open or attach the file in a follow-up step.
+- `[NOTE-8]` In `log` mode, where a clipboard utility is available (`pbcopy` on macOS, `wl-copy` or `xclip` on Linux, `clip.exe` on Windows), the skill shall copy the note body to the system clipboard on a best-effort basis and report whether the copy succeeded.
+- `[NOTE-9]` In `log` mode, where the current working directory is a git repository whose origin host is a recognized forge (currently `github.com` and any `gitlab.*` host), the skill shall print a "create issue" URL with the title and body query-encoded so a single click opens a pre-populated new-issue form. For unrecognized hosts or non-git directories the skill shall omit the URL without erroring.
 
 ---
 
@@ -167,7 +170,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - Sanitizing transcripts. (The transcript is the caller's responsibility.)
 - A separate retro index, retro categories registry, or any cross-retro aggregation surface.
 - Docsify rendering of the team retro repo.
-- Session replay or playback (deferred — see [retro playback issue](https://gitlab.getty.cloud/cpeterson/ai-sdlc/-/issues/2)).
+- Session replay or playback.
 - Anonymization of `session_id` or `device_id`.
 - Multi-author or multi-tenant features beyond multiple teams per workstation.
 - An MCP server or read-side aggregation API.

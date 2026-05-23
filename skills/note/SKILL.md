@@ -1,6 +1,6 @@
 ---
 name: note
-description: Capture an observation about something not working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — then choose to act now (apply + sweep), defer to a fresh session, or log only. Triggers on 'note', 'log a note', 'make a note', 'something is off', 'this should be fixed'.
+description: Capture an observation about something not working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — then choose to do it now (apply + sweep in current session), do it in parallel (spawn a fresh session), or log only. Triggers on 'note', 'log a note', 'make a note', 'something is off', 'this should be fixed'.
 argument-hint: "<observation>"
 ---
 
@@ -8,7 +8,7 @@ argument-hint: "<observation>"
 
 Make an entry in the logbook about something that isn't working well. The note is the primary act; what to *do* with it is a per-note choice.
 
-A note pairs with `/logbook:retro` — retro reflects after the voyage, `note` captures mid-voyage. Once captured, the user picks one of three responses: act now, defer to a fresh session, or log only.
+A note pairs with `/logbook:retro` — retro reflects after the voyage, `note` captures mid-voyage. Once captured, the user picks one of three responses: **do it now** (apply + sweep in this session), **do it in parallel** (spawn a fresh session), or **log only** (capture for later).
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
@@ -19,12 +19,12 @@ flowchart TD
     Ask --> Identify
     Identify --> Propose["Propose default mode +<br/>confirm with user"]
     Propose --> Mode{Mode?}
-    Mode -->|act| Apply["Apply fix in current session"]
+    Mode -->|now| Apply["Apply fix in current session"]
     Apply --> Sweep["Sweep comparable sites"]
     Sweep --> Resume([Resume prior work])
-    Mode -->|defer| Tab["Spawn new session targeting repo"]
+    Mode -->|parallel| Tab["Spawn new session targeting repo"]
     Tab --> Resume
-    Mode -->|log| Emit["Emit structured note<br/>(file an issue later)"]
+    Mode -->|log| Emit["Emit note +<br/>copy + issue URL"]
     Emit --> Resume
 ```
 
@@ -38,10 +38,10 @@ flowchart TD
 
 From the observation, name the most likely target. Examples:
 
-- "the sweep rule is too vague" → `~/.claude/rules/sweep-the-learnings.md` (which per the [ai-sdlc-is-source-of-truth](file:///Users/cpeterson/.claude/rules/ai-sdlc-is-source-of-truth.md) rule actually edits `~/src/getty/cpeterson/ai-sdlc/src/claude/rules/sweep-the-learnings.md`)
+- "the sweep rule is too vague" → `~/.claude/rules/<rule-name>.md` (or, if a sync hook reflects edits from a source-of-truth repo, that repo's copy)
 - "the retro skill should X" → `skills/retro/SKILL.md` in the current repo
 - "this repo's CLAUDE.md is missing Y" → `CLAUDE.md` in the current working directory
-- "the ai-sdlc recipe for debugging needs Z" → `recipes/debugging.md` in the ai-sdlc repo
+- "the debugging playbook needs Z" → the relevant recipe/playbook file in whichever repo owns it
 
 If multiple targets are plausible, list the candidates and ask. Do not silently pick one.
 
@@ -51,23 +51,23 @@ Suggest a default based on the observation's shape:
 
 | Default | When |
 |---|---|
-| `act` | Target is in the current working directory or under `~/.claude/` (sync hook reflects edits to ai-sdlc back to here). Change is small and well-scoped. The user is mid-task and the fix unblocks or tightens that task. |
-| `defer` | Target is a different repo from the current working directory. Change is larger than a one-line edit, or requires its own test/commit cycle. The current session shouldn't be paused for it. |
+| `now` | Target is reachable from the current session (current working directory or a directory under `~/.claude/`). Change is small and well-scoped. The user is mid-task and the fix unblocks or tightens that task. |
+| `parallel` | Target lives in a different repo from the current working directory. Change is larger than a one-line edit, or requires its own test/commit cycle. The current session shouldn't be paused for it. |
 | `log` | The observation isn't yet actionable — needs more thought, more data, or a teammate's input. Or the fix is real but the user wants to batch with similar work later. |
 
 Present the suggestion in one line and let the user override:
 
 ```text
-Target: ~/src/getty/cpeterson/ai-sdlc/src/claude/rules/sweep-the-learnings.md
-Default: act (small wording fix, current session)
-Proceed with [act] / defer / log?
+Target: ~/.claude/rules/<rule-name>.md
+Default: now (small wording fix, current session)
+Proceed with [now] / parallel / log?
 ```
 
-### 4a. Mode: `act`
+### 4a. Mode: `now`
 
 Apply the change in the current session. Then **sweep** — find comparable sites and apply the same learning. This is the ratchet: one observation raises the floor everywhere it fits, not just where it was noticed.
 
-The user's [sweep-the-learnings](file:///Users/cpeterson/.claude/rules/sweep-the-learnings.md) rule governs how to sweep:
+How to sweep:
 
 1. Name the learning precisely (the pattern, not the symptom).
 2. Grep across comparable surfaces — sibling files, sibling artifacts, indexes, summary docs.
@@ -83,11 +83,9 @@ Swept N sites: <list>
 
 Then resume the work the user was doing when the note was raised.
 
-### 4b. Mode: `defer`
+### 4b. Mode: `parallel`
 
 Spawn a new Claude session in a new iTerm tab, pointed at the target repo, pre-loaded with the observation. The current session continues uninterrupted.
-
-Generalized from the original `ai-sdlc` skill — the target repo is now a parameter, not hardcoded.
 
 Write the prompt to a temp file first (multi-line prompts break shell quoting if inlined):
 
@@ -144,7 +142,9 @@ Opened tab targeting <repo-name>: {first 80 chars of observation}...
 
 ### 4c. Mode: `log`
 
-Emit a structured note the user can review later or file as an issue. Today there is no reusable issue-filing skill; one may eventually live in `pwsh-forge`. For now, print the note as a fenced markdown block the user can copy:
+Emit a structured note the user can review, attach, or file as an issue. No file in the target repo is modified and no session is spawned. The skill produces three artifacts in one pass: a tempfile on disk, the body on the system clipboard, and (when the cwd is a git repo on a known forge) a pre-filled "new issue" URL.
+
+**Body shape** — assemble these fields from the observation:
 
 ```markdown
 **Note** (YYYY-MM-DD): <one-line summary>
@@ -158,13 +158,53 @@ Emit a structured note the user can review later or file as an issue. Today ther
 **Suggested action:** <if obvious — otherwise omit>
 ```
 
-State explicitly that nothing has been changed and no session has been spawned. Resume prior work.
+**Write to a tempfile.** Use `mktemp` with a unique template and a `.md` extension so the path doesn't collide with peer sessions and Cmd+click opens the registered editor:
+
+```bash
+TMPFILE=$(mktemp /tmp/logbook-note.XXXXXX.md)
+# Write the body to "$TMPFILE" via the Write tool, then reference $TMPFILE.
+```
+
+**Copy to clipboard** — best-effort, never erroring:
+
+```bash
+if   command -v pbcopy   >/dev/null; then pbcopy < "$TMPFILE"                    # macOS
+elif command -v wl-copy  >/dev/null; then wl-copy < "$TMPFILE"                   # Wayland
+elif command -v xclip    >/dev/null; then xclip -selection clipboard < "$TMPFILE" # X11
+elif command -v clip.exe >/dev/null; then clip.exe < "$TMPFILE"                  # Windows / WSL
+fi
+```
+
+Record whether at least one copy succeeded — surface "copied to clipboard" or "clipboard unavailable" in the summary.
+
+**Build a "new issue" URL** when cwd is a git repo on a recognized forge. URL emission lives here; actually filing via `gh`/`glab` is deferred.
+
+Detect the forge from `git remote get-url origin`:
+
+| Host | URL template |
+|---|---|
+| `github.com` | `https://github.com/<owner>/<repo>/issues/new?title=<title>&body=<body>` |
+| `gitlab.com` or any `gitlab.*` host | `https://<host>/<owner>/<repo>/-/issues/new?issue[title]=<title>&issue[description]=<body>` |
+
+Strip a trailing `.git` from the repo segment. Both `title` and `body` must be URL-encoded (`%`, spaces → `%20`, newlines → `%0A`, etc.). If the cwd isn't a git repo, the origin isn't recognized, or the URL would exceed ~8 KB after encoding, omit the URL — print the file path and clipboard status only.
+
+**Print a summary** — file path as a clickable hyperlink, clipboard status, URL (if any), and an explicit "no files in the target were modified" line:
+
+```text
+Logged note: [logbook-note.<id>.md](file:///tmp/logbook-note.<id>.md)
+Clipboard: copied (pbcopy) | unavailable
+Create issue: <forge URL, if any>
+
+Nothing in the target was modified; no parallel session was spawned.
+```
+
+Then resume prior work.
 
 ## Sweep guidance
 
-The `act` mode is the high-leverage path. A note that becomes an inline fix plus a sweep raises the floor across the whole codebase in one shot — vs. `defer` (one repo, asynchronously) or `log` (zero repos, maybe never). Default to `act` when the target is reachable from the current session and the fix is small.
+The `now` mode is the high-leverage path. A note that becomes an inline fix plus a sweep raises the floor across the whole codebase in one shot — vs. `parallel` (one repo, asynchronously) or `log` (zero repos, maybe never). Default to `now` when the target is reachable from the current session and the fix is small.
 
-Conversely, do not force `act` for changes that legitimately need their own test/commit cycle in another repo. That's what `defer` is for.
+Conversely, do not force `now` for changes that legitimately need their own test/commit cycle in another repo. That's what `parallel` is for.
 
 ## Examples
 
@@ -172,13 +212,13 @@ Conversely, do not force `act` for changes that legitimately need their own test
 /logbook:note the sweep rule should explicitly call out "report the result, even when zero sites match"
 ```
 
-→ Target: `sweep-the-learnings.md`. Mode: `act` (small wording fix). Apply, then sweep other rules for the same gap.
+→ Target: a sweep-related rule file under `~/.claude/rules/`. Mode: `now` (small wording fix). Apply, then sweep other rules for the same gap.
 
 ```text
-/logbook:note the ai-sdlc debugging recipe doesn't say when to bail on a rabbit hole
+/logbook:note the debugging playbook doesn't say when to bail on a rabbit hole
 ```
 
-→ Target: `~/src/getty/cpeterson/ai-sdlc/recipes/debugging.md`. Mode: `defer` (different repo, needs its own test/commit). Spawn tab.
+→ Target: the debugging recipe in a separate playbook repo. Mode: `parallel` (different repo, needs its own test/commit). Spawn tab.
 
 ```text
 /logbook:note something feels off about how /logbook:retro asks for the deliverable links — it sometimes prompts twice

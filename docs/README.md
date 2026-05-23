@@ -51,7 +51,7 @@ logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on 
 > Transcripts are **never** published. The team repo gets the retro `index.md` only.
 
 - The retro frontmatter includes `session_id` and `device_id` so an author can correlate a published retro to their local session data.
-- The CLI does not read or modify session transcripts. Transcript handling is the caller's responsibility (e.g. an ai-sdlc-side hook).
+- The CLI does not read or modify session transcripts. Transcript handling is the caller's responsibility (e.g. a separate sanitization hook before publishing).
 - Categories are free-form strings — no enforced whitelist.
 
 ## Reference

@@ -4,9 +4,9 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-05-17
+**Last audit:** 2026-05-23
 **Spec version:** v0.1
-**Coverage:** 70 / 70 normative requirements (100%) + 7 deferred
+**Coverage:** 73 / 73 normative requirements (100%) + 7 deferred
 
 ## Status by category
 
@@ -21,9 +21,29 @@ revised.
 | INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
 | COST | 6 | All Covered | `scripts/logbook` retro estimate-cost |
-| NOTE | 6 | All Covered | `skills/note/SKILL.md` |
+| NOTE | 9 | All Covered | `skills/note/SKILL.md` |
 
 ## Audit history
+
+### 2026-05-23 — note skill polish for v0.5.0 release
+
+Triggered by a release-prep pass on the `note` skill ahead of v0.5.0.
+
+- **Spec edits applied (SPEC.md)**
+  - `[NOTE-3]`, `[NOTE-4]`, `[NOTE-5]` rename: modes `act`/`defer`/`log` → `now`/`parallel`/`log` (clearer about *when* each mode acts).
+  - `[NOTE-6]` split into four requirements:
+    - `[NOTE-6]` (narrowed) — log mode shall not modify the target and shall not spawn any session.
+    - `[NOTE-7]` (new) — log mode shall write the body to a unique tempfile and print the path.
+    - `[NOTE-8]` (new) — log mode shall best-effort copy the body to the system clipboard and report success.
+    - `[NOTE-9]` (new) — log mode shall print a pre-filled "create issue" URL when the cwd is a git repo on a recognized forge (`github.com`, `gitlab.*`).
+  - Non-goals section: removed a private gitlab.getty.cloud issue URL.
+
+- **Coverage delta**
+  - 70 → 73 normative requirements (+3 for the NOTE-6 split).
+  - All sampled prior requirements remain covered. The release pass touched only NOTE and prose, no implementation surface.
+
+- **Decoupling pass**
+  - Stripped lingering `ai-sdlc` / personal-repo references from `skills/note/SKILL.md`, `docs/README.md`, `hooks/cli-freshness.sh`, and `CHANGELOG.md` so the plugin reads as a standalone artifact rather than a slice of a private workflow.
 
 ### 2026-05-17 — `note` skill spec'd, INST-4 relaxed
 

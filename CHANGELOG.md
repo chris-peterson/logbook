@@ -3,7 +3,8 @@
 ## 0.5.0
 
 ### Features
-- New `/logbook:note` skill for capturing mid-session observations. When something isn't working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — `note` captures it and offers three responses: act now (apply + sweep comparable sites), defer to a fresh session targeting the affected repo, or log only. Pairs with `/logbook:retro`: retro reflects after the voyage, `note` captures mid-voyage.
+- New `/logbook:note` skill for capturing mid-session observations. When something isn't working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — `note` captures it and offers three responses: **now** (apply the fix and sweep comparable sites in the current session), **parallel** (spawn a fresh session in a new iTerm tab pointed at the affected repo), or **log** (capture for later without modifying anything). Pairs with `/logbook:retro`: retro reflects after the voyage, `note` captures mid-voyage.
+- `log` mode emits the structured note three ways in a single pass: a markdown tempfile (clickable path), the body on the system clipboard via `pbcopy`/`wl-copy`/`xclip`/`clip.exe`, and — when the cwd is a git repo with a recognized origin (`github.com` or any `gitlab.*` host) — a pre-filled "new issue" URL with the title and body query-encoded. Tight forge integration (actually filing via `gh`/`glab`) remains deferred.
 - Hosted docs site now has a Skills landing page that lists every skill with a one-line "use when..." hook, reachable from the sidebar.
 
 ### Other
@@ -13,7 +14,7 @@
 ## 0.4.0
 
 ### Features
-- `SessionStart` hook now checks CLI wrapper freshness on every Claude Code session start, regardless of which surface invokes the CLI. Previously the freshness check lived in `/logbook:retro`'s pre-flight, which only fired when that skill was invoked — consumers calling `logbook` directly (ai-sdlc `/retro`, other skills, shell) bypassed it. The hook compares `logbook --version` against `plugin.json#version` and emits an `additionalContext` nudge when they differ; silent on match, silent when the CLI isn't on PATH, never blocks the session.
+- `SessionStart` hook now checks CLI wrapper freshness on every Claude Code session start, regardless of which surface invokes the CLI. Previously the freshness check lived in `/logbook:retro`'s pre-flight, which only fired when that skill was invoked — consumers calling `logbook` directly (other skills, shell, external integrations) bypassed it. The hook compares `logbook --version` against `plugin.json#version` and emits an `additionalContext` nudge when they differ; silent on match, silent when the CLI isn't on PATH, never blocks the session.
 
 ## 0.3.1
 
