@@ -9,7 +9,7 @@ Single-file CLI. Subcommands:
     config                                        print resolved config
     retro publish <category> <slug> <dir> [--team <t>]
     retro template-path                           absolute path to retro template
-    retro estimate-cost <i> <o> <cc> <cr> [--model opus-4.7|opus-4.6|...]
+    retro estimate-cost <i> <o> <cc> <cr> [--model claude-opus-4-7|claude-sonnet-4-6|...]
     install-cli [--dir <path>]                    install 'logbook' wrapper on PATH + zsh completions
     completions zsh [--print]                     install/print zsh completions
 """
@@ -91,35 +91,55 @@ _logbook "$@"
 
 
 # ── pricing ─────────────────────────────────────────────────────────────────
+#
+# Prices come from LiteLLM's MIT-licensed model_prices_and_context_window.json,
+# vendored at scripts/model_prices.json. To keep the table current, run
+# `just refresh-prices` whenever Anthropic publishes new models or changes
+# pricing — LiteLLM tracks both within ~24h via community PRs.
+#
+# To sanity-check without refreshing: pick a recent session's `/usage` cost
+# output, capture its per-model token counts (input, output, cache write,
+# cache read), and run `logbook retro estimate-cost <i> <o> <cw> <cr> --model
+# <name>`. The result should match `/usage` to the cent. If it doesn't, the
+# vendored table is stale — refresh.
 
-# Per-million-token prices (USD). Source: https://docs.anthropic.com/en/docs/about-claude/pricing
-MODEL_PRICING = {
-    "opus-4.7":   {"input": 15.0, "output": 75.0, "cache_create": 18.75, "cache_read": 1.50},
-    "opus-4.6":   {"input": 15.0, "output": 75.0, "cache_create": 18.75, "cache_read": 1.50},
-    "sonnet-4.6": {"input": 3.0,  "output": 15.0, "cache_create": 3.75,  "cache_read": 0.30},
-    "haiku-4.5":  {"input": 0.80, "output": 4.0,  "cache_create": 1.0,   "cache_read": 0.08},
-}
-DEFAULT_MODEL = "opus-4.7"
+PRICES_PATH = PLUGIN_ROOT / "scripts" / "model_prices.json"
+DEFAULT_MODEL = "claude-opus-4-7"
 
 
-def _normalize_model(name: str) -> str:
-    n = name.lower().replace(" ", "").replace("_", "-")
-    n = n.replace("claude-", "")
-    if n in MODEL_PRICING:
-        return n
-    for key in MODEL_PRICING:
-        if key in n:
-            return key
-    sys.exit(f"unknown model: {name} (supported: {', '.join(MODEL_PRICING)})")
+def _load_prices() -> dict:
+    if not PRICES_PATH.exists():
+        sys.exit(f"price table missing: {PRICES_PATH} (run `just refresh-prices`)")
+    return json.loads(PRICES_PATH.read_text())
+
+
+def _resolve_model(name: str, prices: dict) -> str:
+    """Map a user-supplied model name to a key in the price table.
+
+    Accepts LiteLLM/Anthropic dashed keys verbatim (`claude-opus-4-7`,
+    `claude-opus-4-7-20260416`) and a few legacy short forms (`opus-4.7`).
+    """
+    if name in prices:
+        return name
+    n = name.lower().replace(" ", "").replace("_", "-").replace(".", "-")
+    candidates = [n, f"claude-{n}"] if not n.startswith("claude-") else [n]
+    for c in candidates:
+        if c in prices:
+            return c
+    matches = [k for k in prices if any(k.startswith(c) for c in candidates)]
+    if len(matches) == 1:
+        return matches[0]
+    sys.exit(f"unknown model: {name} (known: {', '.join(sorted(prices))})")
 
 
 def cmd_estimate_cost(args):
-    pricing = MODEL_PRICING[_normalize_model(args.model)]
+    prices = _load_prices()
+    p = prices[_resolve_model(args.model, prices)]
     cost = (
-        (args.input_tokens / 1e6) * pricing["input"]
-        + (args.output_tokens / 1e6) * pricing["output"]
-        + (args.cache_create / 1e6) * pricing["cache_create"]
-        + (args.cache_read / 1e6) * pricing["cache_read"]
+        args.input_tokens * p.get("input_cost_per_token", 0)
+        + args.output_tokens * p.get("output_cost_per_token", 0)
+        + args.cache_create * p.get("cache_creation_input_token_cost", 0)
+        + args.cache_read * p.get("cache_read_input_token_cost", 0)
     )
     print(f"~${cost:.2f}")
 
@@ -1080,7 +1100,7 @@ def main(argv=None):
     rc.add_argument("cache_create", type=int)
     rc.add_argument("cache_read", type=int)
     rc.add_argument("--model", default=DEFAULT_MODEL,
-                    help=f"model name (default: {DEFAULT_MODEL}; supported: {', '.join(MODEL_PRICING)})")
+                    help=f"model name (default: {DEFAULT_MODEL}; see scripts/model_prices.json for all keys)")
 
     sp = sub.add_parser("install-cli", help="install 'logbook' wrapper on PATH + zsh completions")
     sp.add_argument("--dir", default=None,

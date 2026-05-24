@@ -4,9 +4,9 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-05-23
+**Last audit:** 2026-05-24
 **Spec version:** v0.1
-**Coverage:** 73 / 73 normative requirements (100%) + 7 deferred
+**Coverage:** 74 / 74 normative requirements (100%) + 7 deferred
 
 ## Status by category
 
@@ -20,10 +20,32 @@ revised.
 | PRIV | 4 | All Covered | Core contract |
 | INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
-| COST | 6 | All Covered | `scripts/logbook` retro estimate-cost |
+| COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json` |
 | NOTE | 9 | All Covered | `skills/note/SKILL.md` |
 
 ## Audit history
+
+### 2026-05-24 — COST pricing source-of-truth
+
+Triggered by an audit of `retro estimate-cost`: the hardcoded price table in
+`scripts/logbook` had drifted three full repricings out of date, so Opus
+sessions reported ~3x the actual cost.
+
+- **Spec edits applied (SPEC.md)**
+  - `[COST-2]` reworded: pricing source is now the vendored LiteLLM table
+    (`scripts/model_prices.json`), not Anthropic's prose docs.
+  - `[COST-3]` default model: `opus-4.7` → `claude-opus-4-7` (matches the
+    Anthropic / LiteLLM id form that appears in transcripts).
+  - `[COST-4]` recognized ids: `claude-opus-4-7`, `claude-opus-4-6`,
+    `claude-sonnet-4-6`, `claude-haiku-4-5` (short forms still accepted via
+    COST-6).
+  - `[COST-6]` reworded around the dotted-vs-dashed normalization, matching
+    the resolver's actual logic.
+  - `[COST-7]` added — `just refresh-prices` re-downloads the LiteLLM file
+    and writes the Anthropic-direct subset.
+
+- **Coverage delta**
+  - 73 → 74 normative requirements (+1 for `[COST-7]`).
 
 ### 2026-05-23 — note skill polish for v0.5.0 release
 

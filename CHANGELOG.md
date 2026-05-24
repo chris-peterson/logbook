@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0
+
+### Features
+- `logbook retro estimate-cost --model …` now accepts the dashed Anthropic model ids that appear in Claude Code transcripts (`claude-opus-4-7`, `claude-opus-4-7-20260416`) — paste the model field from `logbook session` directly without translation. Legacy short forms (`opus-4.7`, `haiku-4.5`) still resolve. ([COST-3], [COST-4], [COST-6])
+- New `just refresh-prices` target re-downloads Anthropic's per-token prices from the canonical LiteLLM table whenever new models ship or pricing changes. ([COST-7])
+
+### Fixes
+- Opus 4.5 / 4.6 / 4.7 and Haiku 4.5 sessions now report accurate cost from `logbook retro estimate-cost`. The previous hardcoded price table held the older Opus generation's rate ($15/$75 per M tokens) and the Haiku 3.5 rate ($0.80/$4), so every session run on those models since their launch overcounted by ~3x. Back-compute against Claude Code's `/usage` output to verify.
+
+  This bug has always existed — the hardcoded table was never reconciled against the Anthropic repricings that shipped with Opus 4.5 on 2025-11-01 and Haiku 4.5 on 2025-10-01. Consumers of `estimate-cost` should re-run against any retros authored between those dates and today.
+
+### Other
+- Pricing source-of-truth moved from a hand-maintained dict to a vendored LiteLLM JSON (`scripts/model_prices.json`, ~20 KiB, 21 Anthropic-direct entries). Maintenance recipe documented inline near the load site. ([COST-2])
+- Spec coverage: 73 → 74 normative requirements (+1 for the new refresh target).
+
 ## 0.6.0
 
 ### Features

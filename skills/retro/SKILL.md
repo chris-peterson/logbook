@@ -39,7 +39,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/logbook" retro estimate-cost \
   <input_tokens> <output_tokens> <cache_create> <cache_read> --model <model>
 ```
 
-The CLI knows pricing for `opus-4.7`, `opus-4.6`, `sonnet-4.6`, `haiku-4.5`. Output format: `~$X.XX`.
+Pass the full Anthropic model id from `logbook session` (e.g. `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`). Pricing is sourced from the vendored LiteLLM table at `scripts/model_prices.json` — refresh with `just refresh-prices` if a recent model is unknown. Output format: `~$X.XX`.
 
 ## Step 2: Gather context
 
