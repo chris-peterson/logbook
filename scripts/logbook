@@ -97,6 +97,13 @@ _logbook "$@"
 # `just refresh-prices` whenever Anthropic publishes new models or changes
 # pricing — LiteLLM tracks both within ~24h via community PRs.
 #
+# Caveat: refresh only pulls what LiteLLM has. On a model's release day the
+# upstream entry usually doesn't exist yet, so refresh succeeds silently
+# (`wrote ... (N models)`) without adding it — and estimate-cost still exits
+# `unknown model` for that key. Re-run once LiteLLM lands the entry. If the
+# new model reuses an existing generation's pricing, `--model <prior-key>`
+# gives the same figure in the meantime.
+#
 # To sanity-check without refreshing: pick a recent session's `/usage` cost
 # output, capture its per-model token counts (input, output, cache write,
 # cache read), and run `logbook retro estimate-cost <i> <o> <cw> <cr> --model
