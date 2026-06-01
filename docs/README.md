@@ -17,8 +17,9 @@ logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on 
 
 1. **Install the plugin.**
 
-   ```text
-   /plugin install logbook
+   ```bash
+   claude plugin marketplace add chris-peterson/claude-marketplace
+   claude plugin install logbook@chris-peterson
    ```
 
 2. **(Optional) Install the shell wrapper** for tab completion and CLI use outside Claude Code:
