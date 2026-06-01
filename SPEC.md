@@ -47,7 +47,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 ## CLI — Surface and Subcommands
 
 - `[CLI-1]` The system shall expose a single executable named `logbook` that accepts subcommands.
-- `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `add-team`, `device-id`, `config`, `retro`, and `completions`.
+- `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `add-team`, `device-id`, `config`, `retro`, `install-cli`, and `completions`.
 - `[CLI-3]` The `retro` subcommand shall support the nested subcommands `publish`, `template-path`, and `estimate-cost`.
 - `[CLI-4]` When invoked with no subcommand, the CLI shall print top-level help to stdout and exit zero.
 - `[CLI-5]` The CLI shall be runnable directly via `python3 <path>/logbook <args>` without prior installation.
@@ -62,17 +62,19 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 ## SES — Session Info
 
 - `[SES-1]` When invoked as `logbook session`, the CLI shall emit a JSON object on stdout describing the active AI coding session for the current workspace.
-- `[SES-2]` The session JSON shall contain at minimum the keys `id`, `name`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`. (`name` is the cleaned first user prompt; `slug` is its slugified form — see [SES-3].)
-- `[SES-3]` The session JSON shall contain a `slug` field derived from the session's first user prompt.
+- `[SES-2]` The session JSON shall contain at minimum the keys `id`, `name`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`, where `name` is the cleaned first user prompt.
+- `[SES-3]` The session JSON shall contain a `slug` field, the slugified form of `name` (the session's first user prompt).
 - `[SES-4]` Where `CLAUDE_CODE_SESSION_ID` is set, the CLI shall report the Claude Code session matching that id.
-- `[SES-5]` While `CLAUDE_CODE_SESSION_ID` is unset, the CLI shall walk its own process ancestry to the nearest `claude` process and, if `~/.claude/sessions/<pid>.json` exists for that PID, report the session named in that record. If no `claude` ancestor or session record is found, the CLI shall fall back to the most-recently-modified `.jsonl` in the cwd-derived project directory under `~/.claude/projects/`.
+- `[SES-5a]` While `CLAUDE_CODE_SESSION_ID` is unset, the CLI shall walk its own process ancestry to the nearest `claude` process and, if `~/.claude/sessions/<pid>.json` exists for that PID, report the session named in that record.
+- `[SES-5b]` While `CLAUDE_CODE_SESSION_ID` is unset and no `claude` ancestor or session record is found, the CLI shall fall back to the most-recently-modified `.jsonl` in the cwd-derived project directory under `~/.claude/projects/`.
 - `[SES-6]` While no Claude Code session is detected, when a VS Code workspace storage entry contains GitHub Copilot chat sessions for the current workspace, the CLI shall report the latest Copilot session.
 - `[SES-7]` While no Claude Code or Copilot session is detected, when a Cursor workspace storage entry exists for the current workspace, the CLI shall report the focused Cursor composer session.
 - `[SES-8]` For Claude Code sessions, the JSON output shall include a `detailed` block with at least `tool_usage`, `files_touched`, `timeline`, `user_messages`, `overlapping_sessions`, and `initial_context_tokens`. The `detailed` block may additionally include `compaction` (event timestamps and line numbers) and `git_activity` (commit timeline across detected repos for the last 7 days) when the relevant data is present.
 - `[SES-9]` If no session can be detected, then the CLI shall exit with a non-zero status and an actionable error.
 - `[SES-10]` When invoked as `logbook session-id`, the CLI shall write only the active session's identifier followed by a newline to stdout, without parsing the session transcript or computing the `detailed` block.
-- `[SES-11]` The `session-id` subcommand shall use the same detection precedence as `session` (`CLAUDE_CODE_SESSION_ID` env, then `claude`-ancestor PID lookup via `~/.claude/sessions/<pid>.json`, then most recently modified Claude Code session for the current workspace), and shall exit with a non-zero status and an actionable error if no Claude Code session is detected.
-- `[SES-12]` Copilot and Cursor session detection ([SES-6], [SES-7]) is currently implemented for macOS only — the implementation reads from paths under `~/Library/Application Support/`. Behavior on other platforms is undefined.
+- `[SES-11a]` The `session-id` subcommand shall use the same detection precedence as `session`: `CLAUDE_CODE_SESSION_ID` env, then `claude`-ancestor PID lookup via `~/.claude/sessions/<pid>.json`, then the most-recently-modified Claude Code session for the current workspace.
+- `[SES-11b]` If no Claude Code session is detected, then `session-id` shall exit with a non-zero status and an actionable error.
+- `[SES-12]` Where the platform is not macOS, the behavior of Copilot and Cursor session detection ([SES-6], [SES-7]) is undefined — the implementation reads from paths under `~/Library/Application Support/`.
 
 ---
 

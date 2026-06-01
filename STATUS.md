@@ -4,17 +4,17 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-05-24
+**Last audit:** 2026-05-31
 **Spec version:** v0.1
-**Coverage:** 74 / 74 normative requirements (100%) + 7 deferred
+**Coverage:** 74 / 74 normative requirements (all Covered) + 7 deferred
 
 ## Status by category
 
 | Prefix | Count | Status | Notes |
 |--------|------:|--------|-------|
 | CFG | 11 | All Covered | `scripts/logbook` config + state |
-| CLI | 10 | All Covered | `scripts/logbook` argv dispatch |
-| SES | 12 | All Covered | `scripts/logbook` session detection |
+| CLI | 10 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration now includes `install-cli` |
+| SES | 12 | All Covered | `scripts/logbook` session detection; SES-5/SES-11 decomposed into lettered sub-requirements |
 | RETRO | 6 | All Covered | `templates/retro.md` |
 | PUB | 11 | All Covered | `scripts/logbook` retro publish path |
 | PRIV | 4 | All Covered | Core contract |
@@ -24,6 +24,37 @@ revised.
 | NOTE | 9 | All Covered | `skills/note/SKILL.md` |
 
 ## Audit history
+
+### 2026-05-31 — spec-alignment pass (CLI-2 closed, EARS cleanups)
+
+Follow-up to the same-day 0.6.0–0.7.0 review, which had reconciled `[CLI-2]`
+to Partial. This pass applies the spec edits that close it and clears the
+low-priority EARS backlog flagged in that audit.
+
+- **Spec edits applied (SPEC.md)**
+  - `[CLI-2]` enumeration: added the shipped `install-cli` subcommand and
+    aligned the ordering with the module docstring (`session`, `session-id`,
+    `add-team`, `device-id`, `config`, `retro`, `install-cli`, `completions`).
+    Closes the lone Partial; CLI is now All Covered.
+  - `[SES-2]`/`[SES-3]`: split the key-set guarantee from the
+    name-definition note and removed the duplicated `slug` definition that
+    overlapped `[SES-3]`. SES-2 now states the required keys plus the `name`
+    definition; SES-3 defines `slug` as the slugified form of `name`.
+  - `[SES-5]` → `[SES-5a]`/`[SES-5b]`: decomposed the 3-level detection +
+    fallback into additive lettered sub-requirements (PID-lookup hit;
+    project-directory fallback).
+  - `[SES-11]` → `[SES-11a]`/`[SES-11b]`: same decomposition for `session-id`
+    (detection precedence; error path on no-session).
+  - `[SES-12]`: reworded from descriptive prose into Optional EARS form
+    ("Where the platform is not macOS, the behavior of [SES-6]/[SES-7] is
+    undefined").
+  - Left `CFG-4`, `CFG-5`, `RETRO-4`, `RETRO-5`, `INST-2` as-is — acceptable
+    Ubiquitous "shall contain/include" form.
+
+- **Coverage delta**
+  - No net change: 74 / 74 normative requirements, now all Covered (CLI-2
+    moves Partial → Covered). The SES-5/SES-11 lettered splits re-express
+    existing requirements rather than adding normative surface.
 
 ### 2026-05-24 — COST pricing source-of-truth
 
