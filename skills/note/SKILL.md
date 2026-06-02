@@ -1,6 +1,6 @@
 ---
 name: note
-description: Capture an observation about something not working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — then choose to do it now (apply + sweep in current session), do it in parallel (spawn a fresh session), or log only. Triggers on 'note', 'log a note', 'make a note', 'something is off', 'this should be fixed'.
+description: Capture an observation about something not working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — then choose This Session (apply + sweep here), New Session (spawn a fresh session), or Future Session (capture for later). Triggers on 'note', 'log a note', 'make a note', 'something is off', 'this should be fixed'.
 argument-hint: "<observation>"
 ---
 
@@ -8,7 +8,7 @@ argument-hint: "<observation>"
 
 Make an entry in the logbook about something that isn't working well. The note is the primary act; what to *do* with it is a per-note choice.
 
-A note pairs with `/logbook:retro` — retro reflects after the voyage, `note` captures mid-voyage. Once captured, the user picks one of three responses: **do it now** (apply + sweep in this session), **do it in parallel** (spawn a fresh session), or **log only** (capture for later).
+A note pairs with `/logbook:retro` — retro reflects after the voyage, `note` captures mid-voyage. Once captured, the user picks one of three responses: **This Session** (apply + sweep here), **New Session** (spawn a fresh session to handle it in the background), or **Future Session** (capture it now; act in a later session).
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
@@ -19,12 +19,12 @@ flowchart TD
     Ask --> Identify
     Identify --> Propose["Propose default mode +<br/>confirm with user"]
     Propose --> Mode{Mode?}
-    Mode -->|now| Apply["Apply fix in current session"]
+    Mode -->|This Session| Apply["Apply fix in current session"]
     Apply --> Sweep["Sweep comparable sites"]
     Sweep --> Resume([Resume prior work])
-    Mode -->|parallel| Tab["Spawn new session targeting repo"]
+    Mode -->|New Session| Tab["Spawn new session targeting repo"]
     Tab --> Resume
-    Mode -->|log| Emit["Emit note +<br/>copy + issue URL"]
+    Mode -->|Future Session| Emit["Emit note +<br/>copy + issue URL"]
     Emit --> Resume
 ```
 
@@ -51,19 +51,22 @@ Suggest a default based on the observation's shape:
 
 | Default | When |
 |---|---|
-| `now` | Target is reachable from the current session (current working directory or a directory under `~/.claude/`). Change is small and well-scoped. The user is mid-task and the fix unblocks or tightens that task. |
-| `parallel` | Target lives in a different repo from the current working directory. Change is larger than a one-line edit, or requires its own test/commit cycle. The current session shouldn't be paused for it. |
-| `log` | The observation isn't yet actionable — needs more thought, more data, or a teammate's input. Or the fix is real but the user wants to batch with similar work later. |
+| `This Session` | Target is reachable from the current session (current working directory or a directory under `~/.claude/`). Change is small and well-scoped. The user is mid-task and the fix unblocks or tightens that task. |
+| `New Session` | Target lives in a different repo from the current working directory. Change is larger than a one-line edit, or requires its own test/commit cycle. The current session shouldn't be paused for it. |
+| `Future Session` | The observation isn't yet actionable — needs more thought, more data, or a teammate's input. Or the fix is real but the user wants to batch with similar work later. |
 
-Present the suggestion in one line and let the user override:
+Present the three modes as a selectable list with `AskUserQuestion` so the user picks rather than types. Put the suggested default **first** and append `(Recommended)` to its label; the other two follow. State the resolved target in the question text so the choice has context.
 
-```text
-Target: ~/.claude/rules/<rule-name>.md
-Default: now (small wording fix, current session)
-Proceed with [now] / parallel / log?
-```
+- **header:** `Note action`
+- **question:** `Target: <path>. How should this note be handled?`
+- **options** (label → description):
+  - `This Session` → apply the fix and sweep comparable sites right here
+  - `New Session` → launch a fresh session to handle it in the background
+  - `Future Session` → capture it now; act in a later session
 
-### 4a. Mode: `now`
+The user can always pick "Other" to redirect (e.g. a different target, or "don't bother"). Reorder so the recommended option leads, but keep all three present regardless of the default.
+
+### 4a. Mode: `This Session`
 
 Apply the change in the current session. Then **sweep** — find comparable sites and apply the same learning. This is the ratchet: one observation raises the floor everywhere it fits, not just where it was noticed.
 
@@ -83,7 +86,7 @@ Swept N sites: <list>
 
 Then resume the work the user was doing when the note was raised.
 
-### 4b. Mode: `parallel`
+### 4b. Mode: `New Session`
 
 Spawn a new Claude session in a new iTerm tab, pointed at the target repo, pre-loaded with the observation. The current session continues uninterrupted.
 
@@ -140,7 +143,7 @@ Do not wait for the spawned session. Confirm and resume:
 Opened tab targeting <repo-name>: {first 80 chars of observation}...
 ```
 
-### 4c. Mode: `log`
+### 4c. Mode: `Future Session`
 
 Emit a structured note the user can review, attach, or file as an issue. No file in the target repo is modified and no session is spawned. The skill produces three artifacts in one pass: a tempfile on disk, the body on the system clipboard, and (when the cwd is a git repo on a known forge) a pre-filled "new issue" URL.
 
@@ -202,9 +205,9 @@ Then resume prior work.
 
 ## Sweep guidance
 
-The `now` mode is the high-leverage path. A note that becomes an inline fix plus a sweep raises the floor across the whole codebase in one shot — vs. `parallel` (one repo, asynchronously) or `log` (zero repos, maybe never). Default to `now` when the target is reachable from the current session and the fix is small.
+The `This Session` mode is the high-leverage path. A note that becomes an inline fix plus a sweep raises the floor across the whole codebase in one shot — vs. `New Session` (one repo, asynchronously) or `Future Session` (zero repos, maybe never). Default to `This Session` when the target is reachable from the current session and the fix is small.
 
-Conversely, do not force `now` for changes that legitimately need their own test/commit cycle in another repo. That's what `parallel` is for.
+Conversely, do not force `This Session` for changes that legitimately need their own test/commit cycle in another repo. That's what `New Session` is for.
 
 ## Examples
 
@@ -212,16 +215,16 @@ Conversely, do not force `now` for changes that legitimately need their own test
 /logbook:note the sweep rule should explicitly call out "report the result, even when zero sites match"
 ```
 
-→ Target: a sweep-related rule file under `~/.claude/rules/`. Mode: `now` (small wording fix). Apply, then sweep other rules for the same gap.
+→ Target: a sweep-related rule file under `~/.claude/rules/`. Mode: `This Session` (small wording fix). Apply, then sweep other rules for the same gap.
 
 ```text
 /logbook:note the debugging playbook doesn't say when to bail on a rabbit hole
 ```
 
-→ Target: the debugging recipe in a separate playbook repo. Mode: `parallel` (different repo, needs its own test/commit). Spawn tab.
+→ Target: the debugging recipe in a separate playbook repo. Mode: `New Session` (different repo, needs its own test/commit). Spawn tab.
 
 ```text
 /logbook:note something feels off about how /logbook:retro asks for the deliverable links — it sometimes prompts twice
 ```
 
-→ Mode: `log` (needs reproduction first, not actionable yet). Emit the structured note.
+→ Mode: `Future Session` (needs reproduction first, not actionable yet). Emit the structured note.
