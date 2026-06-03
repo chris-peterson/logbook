@@ -90,10 +90,10 @@ Then resume the work the user was doing when the note was raised.
 
 Spawn a new Claude session in a new iTerm tab, pointed at the target repo, pre-loaded with the observation. The current session continues uninterrupted.
 
-Write the prompt to a temp file first (multi-line prompts break shell quoting if inlined):
+Write the prompt to a temp file first (multi-line prompts break shell quoting if inlined). `mktemp -u` prints a unique name without creating the file — on macOS that avoids the "overwrite via a symlink" prompt the `Write` tool raises when `/tmp` (a symlink to `/private/tmp`) already holds the placeholder; `cat >` then creates it. `-u` is supported by both BSD (macOS) and GNU (Linux, Git Bash on Windows) `mktemp`:
 
 ```bash
-TMPFILE=$(mktemp /tmp/logbook-note-XXXXXX.md)
+TMPFILE=$(mktemp -u /tmp/logbook-note.XXXXXX.md)
 cat > "$TMPFILE" <<'PROMPT'
 You are editing the <repo-name> repository. The user has captured an observation
 from a parallel session that needs to be addressed in this repo.
@@ -161,10 +161,10 @@ Emit a structured note the user can review, attach, or file as an issue. No file
 **Suggested action:** <if obvious — otherwise omit>
 ```
 
-**Write to a tempfile.** Use `mktemp` with a unique template and a `.md` extension so the path doesn't collide with peer sessions and Cmd+click opens the registered editor:
+**Write to a tempfile.** Use `mktemp -u` with a unique template and a `.md` extension so the path doesn't collide with peer sessions and Cmd+click opens the registered editor. `-u` prints the name without creating the file, so the `Write` tool treats it as a fresh path — on macOS this sidesteps the "overwrite via a symlink" prompt that plain `mktemp` triggers (it pre-creates the file behind the `/tmp` → `/private/tmp` symlink). The flag is portable across BSD and GNU `mktemp`:
 
 ```bash
-TMPFILE=$(mktemp /tmp/logbook-note.XXXXXX.md)
+TMPFILE=$(mktemp -u /tmp/logbook-note.XXXXXX.md)
 # Write the body to "$TMPFILE" via the Write tool, then reference $TMPFILE.
 ```
 
