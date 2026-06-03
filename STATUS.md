@@ -89,7 +89,6 @@ Triggered by a release-prep pass on the `note` skill ahead of v0.5.0.
     - `[NOTE-7]` (new) — log mode shall write the body to a unique tempfile and print the path.
     - `[NOTE-8]` (new) — log mode shall best-effort copy the body to the system clipboard and report success.
     - `[NOTE-9]` (new) — log mode shall print a pre-filled "create issue" URL when the cwd is a git repo on a recognized forge (`github.com`, `gitlab.*`).
-  - Non-goals section: removed a private gitlab.getty.cloud issue URL.
 
 - **Coverage delta**
   - 70 → 73 normative requirements (+3 for the NOTE-6 split).
