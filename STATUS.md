@@ -4,7 +4,7 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-05-31
+**Last audit:** 2026-06-03
 **Spec version:** v0.1
 **Coverage:** 75 / 75 normative requirements (all Covered) + 7 deferred
 
@@ -24,6 +24,23 @@ revised.
 | NOTE | 9 | All Covered | `skills/note/SKILL.md` |
 
 ## Audit history
+
+### 2026-06-03 — concurrency metric moved into the tool
+
+The retro skill used to have the agent generate a throwaway sweep-line Python
+script per session to compute peak simultaneous sessions — wasted tokens and a
+per-run permission prompt. `logbook session` already emitted everything the
+sweep needs (each overlapping session's window plus the current session's
+`start`/`end`), so the computation moves into the CLI.
+
+- **Implementation (`scripts/logbook`)** — added `_compute_concurrency`, emitted
+  as `detailed.concurrency` with `overlapping`, `max_parallel`, and `wall_hours`.
+- **Spec edit (SPEC.md)** — `[SES-8]` now requires `concurrency` in the
+  `detailed` block and specifies its three fields and the sweep-line rule.
+- **Skill edit (`skills/retro/SKILL.md`)** — Step 1 reads `max_parallel` /
+  `wall_hours` directly instead of recomputing.
+- **Coverage delta** — none; `[SES-8]` is an existing requirement with expanded
+  scope. Still 75 / 75.
 
 ### 2026-05-31 — spec-alignment pass (CLI-2 closed, EARS cleanups)
 

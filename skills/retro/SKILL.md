@@ -24,11 +24,11 @@ Before running the steps below, compare `logbook --version` against the plugin v
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/logbook" session
 ```
 
-Returns JSON: `id`, `name`, `slug`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`, plus a `detailed` block with tool usage, files touched, timeline, user messages, overlapping sessions, git activity, initial context tokens, compaction events.
+Returns JSON: `id`, `name`, `slug`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`, plus a `detailed` block with tool usage, files touched, timeline, user messages, overlapping sessions, concurrency (`overlapping`, `max_parallel`, `wall_hours`), git activity, initial context tokens, compaction events.
 
 ## Step 1: Read the metrics
 
-Note tool usage, files touched, git activity, token usage, and any **overlapping sessions**. If overlap exists, ask the user whether any were intentionally concurrent and should be reflected in the retro.
+Note tool usage, files touched, git activity, token usage, and any **overlapping sessions**. The `concurrency` block already reports `max_parallel` (peak simultaneous sessions) and `wall_hours` — read them directly; do not recompute a sweep line. If overlap exists, ask the user whether any were intentionally concurrent and should be reflected in the retro.
 
 For Claude Code, token usage is exact. For Cursor, token estimates are unreliable — they only capture visible message text and miss cache reads (which dominate actual usage by 50-100x). Note source and reliability when including token data.
 

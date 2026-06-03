@@ -568,6 +568,7 @@ def _extract_claude_detailed(session_id, transcript_path):
         "timeline": timeline,
         "user_messages": user_messages,
         "overlapping_sessions": overlapping,
+        "concurrency": _compute_concurrency(start, end, overlapping),
     }
     if initial_context_tokens is not None:
         result["initial_context_tokens"] = initial_context_tokens
@@ -693,6 +694,41 @@ def _find_overlapping_sessions(session_id, start, end, current_project_dir=None)
                 })
     overlapping.sort(key=lambda x: x["start"])
     return overlapping
+
+
+def _compute_concurrency(start, end, overlapping):
+    """Peak simultaneous sessions over the current session's window via a sweep line.
+
+    Intervals are the current session plus every overlapping session. Sessions
+    that merely touch at a boundary (one ends exactly as another starts) are not
+    counted as concurrent: at equal timestamps the end (-1) is applied before the
+    start (+1).
+    """
+    if not start or not end:
+        return {}
+    intervals = [(start, end)]
+    for o in overlapping:
+        o_start = _parse_timestamp(o.get("start"))
+        o_end = _parse_timestamp(o.get("end"))
+        if o_start and o_end:
+            intervals.append((o_start, o_end))
+
+    events = []
+    for i_start, i_end in intervals:
+        events.append((i_start, 1))
+        events.append((i_end, -1))
+    events.sort(key=lambda e: (e[0], e[1]))
+
+    active = peak = 0
+    for _, delta in events:
+        active += delta
+        peak = max(peak, active)
+
+    return {
+        "overlapping": len(overlapping),
+        "max_parallel": peak,
+        "wall_hours": round((end - start).total_seconds() / 3600, 1),
+    }
 
 
 def _transcript_for_session(session_id):
