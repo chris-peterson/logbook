@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.0
+
+### Features
+- **`logbook help`** now works as an alias for `--help` (CLI-11).
+
 ## 0.7.0
 
 ### Features

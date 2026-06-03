@@ -1118,6 +1118,9 @@ def main(argv=None):
     sp.add_argument("--print", dest="print_only", action="store_true",
                     help="print the script to stdout instead of installing")
 
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["help"]:
+        argv = ["--help"]
     args = parser.parse_args(argv)
 
     if not args.cmd:

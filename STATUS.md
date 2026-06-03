@@ -6,14 +6,14 @@ revised.
 
 **Last audit:** 2026-05-31
 **Spec version:** v0.1
-**Coverage:** 74 / 74 normative requirements (all Covered) + 7 deferred
+**Coverage:** 75 / 75 normative requirements (all Covered) + 7 deferred
 
 ## Status by category
 
 | Prefix | Count | Status | Notes |
 |--------|------:|--------|-------|
 | CFG | 11 | All Covered | `scripts/logbook` config + state |
-| CLI | 10 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration now includes `install-cli` |
+| CLI | 11 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration now includes `install-cli`; CLI-11 (`help` alias for `--help`) |
 | SES | 12 | All Covered | `scripts/logbook` session detection; SES-5/SES-11 decomposed into lettered sub-requirements |
 | RETRO | 6 | All Covered | `templates/retro.md` |
 | PUB | 11 | All Covered | `scripts/logbook` retro publish path |

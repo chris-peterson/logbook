@@ -56,6 +56,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[CLI-8]` The CLI shall be a single Python source file with no project-internal imports beyond the Python standard library and PyYAML.
 - `[CLI-9]` If a subcommand fails, then the CLI shall exit with a non-zero status and write a one-line actionable error to stderr.
 - `[CLI-10]` When invoked as `logbook --version` or `logbook -v`, the CLI shall print the value of `<plugin-root>/.claude-plugin/plugin.json#version` and exit zero.
+- `[CLI-11]` When invoked as `logbook --help`, `-h`, or `help`, the CLI shall print top-level help to stdout and exit zero.
 
 ---
 
