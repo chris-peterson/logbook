@@ -147,11 +147,11 @@ Opened tab targeting <repo-name>: {first 80 chars of observation}...
 
 Emit a structured note the user can review, attach, or file as an issue. No file in the target repo is modified and no session is spawned. The skill produces three artifacts in one pass: a tempfile on disk, the body on the system clipboard, and (when the cwd is a git repo on a known forge) a pre-filled "new issue" URL.
 
-**Body shape** — assemble these fields from the observation:
+**Title** — a short, specific phrase naming the change you want, in the imperative or as a statement of the desired end state. The issue already records its own date and the body carries the detail, so the title is just the headline. Keep it terse — aim for under ~60 characters and drop trailing qualifiers (`…, not just uncommitted changes` → cut it). Don't prefix it with `Note:` or a date.
+
+**Body shape** — assemble these fields from the observation. No date line and no `**Note**` lead — the forge stamps the date, and the title is the summary:
 
 ```markdown
-**Note** (YYYY-MM-DD): <one-line summary>
-
 **Target:** <path or "TBD">
 
 **Observation:** <full text>
@@ -191,15 +191,23 @@ Detect the forge from `git remote get-url origin`:
 
 Strip a trailing `.git` from the repo segment. Both `title` and `body` must be URL-encoded (`%`, spaces → `%20`, newlines → `%0A`, etc.). If the cwd isn't a git repo, the origin isn't recognized, or the URL would exceed ~8 KB after encoding, omit the URL — print the file path and clipboard status only.
 
-**Print a summary** — file path as a clickable hyperlink, clipboard status, URL (if any), and an explicit "no files in the target were modified" line:
+**Print a summary** — lead with the action. Render the prefilled issue URL as a markdown hyperlink with a short label, never the raw query string (it encodes the whole body and is unreadable inline). Name the target repo so the user knows where the issue lands, link the note file, and note the clipboard in passing. Per the clickable-paths convention, both links are markdown links — `[label](url)`.
+
+When a forge URL was built:
 
 ```text
-Logged note: [logbook-note.<id>.md](file:///tmp/logbook-note.<id>.md)
-Clipboard: copied (pbcopy) | unavailable
-Create issue: <forge URL, if any>
-
-Nothing in the target was modified; no parallel session was spawned.
+Captured for <owner>/<repo> — nothing modified, no session spawned.
+→ **[File the issue](<prefilled-url>)** · note: [logbook-note.<id>.md](file:///tmp/logbook-note.<id>.md) (copied to clipboard)
 ```
+
+When no URL (cwd isn't a recognized forge repo, or the encoded URL was too long):
+
+```text
+Captured — nothing modified, no session spawned.
+Note saved to [logbook-note.<id>.md](file:///tmp/logbook-note.<id>.md) (copied to clipboard); file it manually when ready.
+```
+
+If the clipboard copy failed, say `(clipboard unavailable)` in place of `(copied to clipboard)`.
 
 Then resume prior work.
 

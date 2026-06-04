@@ -4,9 +4,9 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-06-03
+**Last audit:** 2026-06-04
 **Spec version:** v0.1
-**Coverage:** 75 / 75 normative requirements (all Covered) + 7 deferred
+**Coverage:** 91 / 91 normative requirements (all Covered); 0 deferred
 
 ## Status by category
 
@@ -14,16 +14,26 @@ revised.
 |--------|------:|--------|-------|
 | CFG | 11 | All Covered | `scripts/logbook` config + state |
 | CLI | 11 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration now includes `install-cli`; CLI-11 (`help` alias for `--help`) |
-| SES | 12 | All Covered | `scripts/logbook` session detection; SES-5/SES-11 decomposed into lettered sub-requirements |
+| SES | 14 | All Covered | `scripts/logbook` session detection; SES-5a/5b and SES-11a/11b each count as one (14, not 12) |
 | RETRO | 6 | All Covered | `templates/retro.md` |
 | PUB | 11 | All Covered | `scripts/logbook` retro publish path |
 | PRIV | 4 | All Covered | Core contract |
 | INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
 | COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json` |
-| NOTE | 9 | All Covered | `skills/note/SKILL.md` |
+| NOTE | 9 | All Covered | `skills/note/SKILL.md`; modes This/New/Future Session |
 
 ## Audit history
+
+### 2026-06-04 — Coverage refresh + NOTE mode-name reword (spec-sync --to-spec)
+
+Corrected ledger counts and resolved the NOTE mode-name drift. Normative count
+fixed 75 → **91** (the header, the category table, and the spec inventory had
+all disagreed); SES row 12 → 14 (lettered splits each count as one); the "+7
+deferred" line dropped (no FUT/deferred IDs exist). `[NOTE-3]`–`[NOTE-9]`
+reworded `now`/`parallel`/`log` → `This Session`/`New Session`/`Future Session`
+to match the skill rename (commit `23a7da2`) — names only, no behavior change.
+NOTE back to All Covered; 91/91.
 
 ### 2026-06-03 — concurrency metric moved into the tool
 
