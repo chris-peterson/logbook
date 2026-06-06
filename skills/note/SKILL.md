@@ -115,22 +115,17 @@ This is a one-off session. Drive toward /commit and exit to avoid context loss.
 PROMPT
 ```
 
-Open the tab:
+Open the tab via the bundled script — it carries the osascript so the command
+the permission layer sees is a named, allow-listable script path rather than an
+inline `osascript` heredoc (which could only be allowed by blanket-allowing
+arbitrary AppleScript):
 
 ```bash
-osascript <<EOF
-tell application "iTerm2"
-    tell current window
-        create tab with default profile
-        tell current session of current tab
-            write text "cd <repo-path> && claude < $TMPFILE ; rm $TMPFILE"
-        end tell
-    end tell
-end tell
-EOF
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/open-iterm-tab.sh" "<repo-path>" "$TMPFILE"
 ```
 
-If iTerm2 is not available, print the command for the user to run manually:
+If iTerm2 is not available the script prints the equivalent manual command on
+stdout and exits non-zero; relay that output to the user:
 
 ```text
 Run in a new terminal:
