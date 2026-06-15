@@ -25,6 +25,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - uses: actions/configure-pages@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: pip install pyyaml
       - name: Copy SPEC.md and skill docs into docs
         run: |
           cp SPEC.md docs/SPEC.md

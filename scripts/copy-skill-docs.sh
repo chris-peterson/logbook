@@ -13,3 +13,6 @@ for skill in skills/*/SKILL.md; do
   name=$(basename "$(dirname "$skill")")
   awk '/^---$/{fm++; next} fm>=2' "$skill" > "docs/skills/$name.md"
 done
+
+# Render the suite: block to docs/suite.json for the live session preview.
+python3 scripts/gen-suite-json.py

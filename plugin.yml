@@ -1,0 +1,49 @@
+# Canonical descriptor for the logbook plugin — edit here, never plugin.json.
+# Projects into .claude-plugin/plugin.json (via scripts/gen-plugin-json.py) and
+# the marketplace SPA (the suite: block).
+
+name: logbook
+version: 0.8.0
+description: A log of important learnings, e.g. AI-assisted coding session retros.
+keywords: [retrospective, ai, session, claude-code]
+license: MIT
+
+# → marketplace.json entry
+marketplace:
+  category: development
+  homepage: https://chris-peterson.github.io/logbook/#/
+
+# → marketplace SPA; keys mirror the SPA's PLUGINS object.
+suite:
+  ac: "--build"
+  cli: true
+  group: learn as you go
+  # The plugin's docs site renders the live session preview, so the hub hands
+  # its drill-in off to the spoke rather than showing the in-hub detail view.
+  spoke: true
+  gloss: The ship's log — what the last crew figured out.
+  pitch: "Solved something the hard way? It writes up what you learned and shares it with the team, so no one re-solves it."
+  what: "Turns a session into a retrospective committed to a team-owned repo. Your chat transcript stays on your machine — only the write-up is shared, so the next person inherits the lesson, not just the code."
+  cmds:
+    - ["/logbook:note", "Capture a process/tooling observation; fix now or defer"]
+    - ["/logbook:retro", "Publish a session retro to the team repo"]
+    - ["logbook", "Same notes + retros from any terminal"]
+  # Skill-anchored previews of the two flagship skills, shown live on the docs
+  # site; the session: below is the at-a-glance flow the hub also reads.
+  examples:
+    - label: "/logbook:note"
+      ac: "--build"
+      frames:
+        - { t: you, text: "/logbook:note the tenant-prefix rule isn't written down anywhere" }
+        - { t: claude, text: "That belongs in CLAUDE.md. I'll add the rule now and sweep the helpers that miss the prefix while we're in this session." }
+        - { t: status, text: "captures the observation and fixes it in place, this session" }
+    - label: "/logbook:retro"
+      ac: "--purple"
+      frames:
+        - { t: you, text: "/logbook:retro" }
+        - { t: claude, text: "Pulled the session metrics and cost. I'll draft the write-up — what worked, what didn't, the lesson — then publish to the team repo." }
+        - { t: status, text: "commits the retro to the team repo; the transcript never leaves your machine" }
+  session:
+    - { t: claude, text: "Third tenant-isolation bug this week." }
+    - { t: thought, text: "this convention isn't written down anywhere" }
+    - { t: cmd, cmd: "/logbook:note", out: "Documents the tenant-prefix rule in CLAUDE.md and sweeps the helpers that miss it — now, this session." }

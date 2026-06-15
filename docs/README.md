@@ -4,6 +4,13 @@ A log of important learnings — turn an AI coding session into a retrospective 
 
 logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on the author's workstation; only the retro is published.
 
+## In action
+
+The third time the same bug bites, the lesson belongs somewhere the next person
+will find it. `/logbook:note` catches it mid-session and fixes it in place:
+
+<div class="cw-session" data-cw-session="session"></div>
+
 ## Interface
 
 | Surface | What it is |
@@ -12,6 +19,11 @@ logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on 
 | [`/logbook:retro`](/skills/retro) | Skill that gathers retro content conversationally and publishes via the CLI |
 | [`/logbook:note`](/skills/note)   | Skill that captures a mid-session observation, then acts, defers to a fresh session, or logs only |
 | `logbook` (shell)       | Same CLI, runnable from any terminal |
+
+The two skills you reach for most — catch a lesson the moment it lands, or
+reflect on the whole session once the work is done:
+
+<div class="cw-session" data-cw-session="examples"></div>
 
 ## Quickstart
 
