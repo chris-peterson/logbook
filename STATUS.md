@@ -25,6 +25,14 @@ revised.
 
 ## Audit history
 
+### 2026-06-17 — pricing verified current
+
+Spot-checked the vendored price table (`scripts/model_prices.json`, last
+refreshed 2026-05-28) against Anthropic's published rates: Opus 4.7/4.6
+($5/$25), Sonnet 4.6 ($3/$15), and Haiku 4.5 ($1/$5) per MTok all unchanged.
+No refresh needed. (Opus 4.8 has since shipped at the same Opus-tier $5/$25 but
+is not yet in the table — `--model claude-opus-4-7` gives the same figure.)
+
 ### 2026-06-04 — Coverage refresh + NOTE mode-name reword (spec-sync --to-spec)
 
 Corrected ledger counts and resolved the NOTE mode-name drift. Normative count
