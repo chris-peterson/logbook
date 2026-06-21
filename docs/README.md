@@ -15,7 +15,7 @@ will find it. `/logbook:note` catches it mid-session and fixes it in place:
 
 | Surface | What it is |
 |---|---|
-| `/logbook <subcommand>` | Slash command that maps directly to the CLI (deterministic ops) |
+| `/logbook:logbook <subcommand>` | Slash command that maps directly to the CLI (deterministic ops) |
 | [`/logbook:retro`](/skills/retro) | Skill that gathers retro content conversationally and publishes via the CLI |
 | [`/logbook:note`](/skills/note)   | Skill that captures a mid-session observation, then acts, defers to a fresh session, or logs only |
 | `logbook` (shell)       | Same CLI, runnable from any terminal |
@@ -37,7 +37,7 @@ reflect on the whole session once the work is done:
 2. **(Optional) Install the shell wrapper** for tab completion and CLI use outside Claude Code:
 
    ```text
-   /logbook install-cli
+   /logbook:logbook install-cli
    ```
 
    Drops a `logbook` wrapper at `~/.local/bin/logbook` and installs the zsh completion script to `~/.zsh/completions/_logbook`. Then `exec zsh` to pick up completions.
@@ -45,7 +45,7 @@ reflect on the whole session once the work is done:
 3. **Register your team's retro repo** (one-time per workstation). Your team creates an empty git repo for retros (e.g. `git@github.com:teamX/retros.git`) where members have push access.
 
    ```text
-   /logbook add-team git@github.com:teamX/retros.git
+   /logbook:logbook add-team git@github.com:teamX/retros.git
    ```
 
    Clones to `~/.logbook/repos/<team>/` and sets it as the default team.
@@ -65,7 +65,7 @@ reflect on the whole session once the work is done:
 
 - The retro frontmatter includes `session_id` and `device_id` so an author can correlate a published retro to their local session data.
 - The CLI does not read or modify session transcripts. Transcript handling is the caller's responsibility (e.g. a separate sanitization hook before publishing).
-- Categories are free-form strings — no enforced whitelist.
+- Categories are free-form strings — no enforced allowlist.
 
 ## Reference
 

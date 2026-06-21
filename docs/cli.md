@@ -33,7 +33,7 @@ export LOGBOOK_HOME=/some/other/path
 ## Multiple teams on one workstation
 
 ```text
-/logbook add-team git@github.com:teamY/retros.git --as teamY
+/logbook:logbook add-team git@github.com:teamY/retros.git --as teamY
 ```
 
 Override the default at retro time by passing `--team teamY` to the publish call.
