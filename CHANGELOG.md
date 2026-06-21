@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1
+
+### Other
+- Namespaced every command example as `/logbook:logbook <subcommand>` in the docs, replaced "whitelist" with "allowlist" in the categories note, and aligned the marketplace suite metadata with the bridge.ai schema.
+
 ## 0.8.0
 
 ### Features
