@@ -1,7 +1,7 @@
 ---
 name: note
-description: Capture an observation about something not working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — then choose This Session (apply + sweep here), New Session (spawn a fresh session), or Future Session (capture for later). Triggers on 'note', 'log a note', 'make a note', 'something is off', 'this should be fixed'.
-argument-hint: "<observation>"
+description: Capture an observation about something not working well — a rule, a skill, a CLAUDE.md, a recipe, a setting — then choose This Session (apply + sweep here), New Session (spawn a fresh session), or Future Session (capture for later). Or bracket a hand-editing handoff: 'note start' stages a baseline and stands down so you can take the wheel, 'note end' reads your isolated edits and harvests the lessons. Triggers on 'note', 'log a note', 'make a note', 'something is off', 'this should be fixed', 'take the wheel', "I'm gonna drive", 'let me drive', 'refresh context', 'note start', 'note end'.
+argument-hint: "<observation> | start | end"
 ---
 
 # `/logbook:note`
@@ -9,6 +9,11 @@ argument-hint: "<observation>"
 Make an entry in the logbook about something that isn't working well. The note is the primary act; what to *do* with it is a per-note choice.
 
 A note pairs with `/logbook:retro` — retro reflects after the voyage, `note` captures mid-voyage. Once captured, the user picks one of three responses: **This Session** (apply + sweep here), **New Session** (spawn a fresh session to handle it in the background), or **Future Session** (capture it now; act in a later session).
+
+There are two ways to raise a note — same destination (a lesson that gets applied, swept, and optionally turned into a durable artifact), different input:
+
+- **Describe it in prose** — `/logbook:note <observation>`: you say what's off, and the skill identifies the target and runs the mode machinery below.
+- **Demonstrate it by hand** — `/logbook:note start` … `/logbook:note end`: you take the wheel and edit files directly; `end` reads your isolated edits and harvests the lessons. The hand-edits *are* the observation. See [Hand-edit mode: take the wheel](#hand-edit-mode-take-the-wheel).
 
 ```mermaid
 %%{ init: { 'look': 'handDrawn' } }%%
@@ -29,6 +34,14 @@ flowchart TD
 ```
 
 ## Behavior
+
+### 0. Dispatch on mode
+
+Read the first token of `$ARGUMENTS`:
+
+- `start` / `begin` (or a "take the wheel" phrasing — "I'm gonna drive", "let me drive") → **[Hand-edit mode → Start](#start-take-the-wheel)**.
+- `end` / `done` / `refresh` (or "refresh context") → **[Hand-edit mode → End](#end-refresh-context)**.
+- anything else, or empty → **prose observation**: continue at step 1.
 
 ### 1. Capture
 
@@ -206,6 +219,102 @@ If the clipboard copy failed, say `(clipboard unavailable)` in place of `(copied
 
 Then resume prior work.
 
+## Hand-edit mode: take the wheel
+
+Most of the time the user lets Claude drive. Occasionally they want to take the wheel and hand-edit files — to correct a convention, fix something faster than describing it, or shape code the way they want it. This mode brackets that handoff so the edits don't just land silently: `end` reads them back, updates Claude's model for the rest of the session, and harvests the generalizable lessons into the same apply/sweep/artifact path a prose note uses.
+
+The bracket relies on one git trick. `start` stages everything as Claude's last-known baseline (`git add -A`), so the index *is* the baseline. The user's hand-edits then stay unstaged, and `git diff` (working tree vs index) shows **exactly** their edits — isolated from any uncommitted work Claude left behind. Without `start`, that isolation isn't possible and `end` says so.
+
+```mermaid
+%%{ init: { 'look': 'handDrawn' } }%%
+flowchart TD
+    StartCmd(["/logbook:note start"]) --> Stage["git add -A<br/>(index = Claude's baseline)"]
+    Stage --> Marker["Write .git/logbook-wheel marker"]
+    Marker --> StandDown["Stand down — user hand-edits,<br/>changes stay unstaged"]
+    StandDown --> EndCmd(["/logbook:note end"])
+    EndCmd --> Diff["git diff + untracked<br/>= the user's isolated edits"]
+    Diff --> Reread["Re-read changed files;<br/>update session model"]
+    Reread --> Lessons["Per change: infer the lesson,<br/>classify local vs generalizable"]
+    Lessons --> Harvest["Generalizable → step 3/4 machinery<br/>(This / New / Future Session)"]
+    Harvest --> Close["Remove marker; unstage (git reset)"]
+    Close --> Resume([Resume — Claude drives again])
+```
+
+### Start (take the wheel)
+
+Triggered by `/logbook:note start`. Hand the wheel to the user.
+
+1. **Confirm a git repo.** Run `git rev-parse --is-inside-work-tree`. If it isn't a repo, say so and stop — the bracket needs git to isolate the diff.
+2. **Check for an open bracket.** If `.git/logbook-wheel` already exists, a bracket is already open. Tell the user when it was opened and re-baseline (re-stage and refresh the marker) rather than erroring.
+3. **Stage the baseline.** `git add -A` — the index now reflects Claude's last-known state, including untracked files Claude created.
+4. **Drop the marker.** Record that the bracket is open and when:
+
+   ```bash
+   date -u +%Y-%m-%dT%H:%M:%SZ > "$(git rev-parse --git-dir)/logbook-wheel"
+   ```
+
+   The marker lives in `.git/` — repo-local, never committed, and the deterministic signal `end` reads to know a bracket is open (rather than inferring it from index state).
+5. **Stand down and report.** Tell the user the wheel is theirs:
+
+   ```text
+   Wheel is yours. Staged my work as the baseline (index = last-known state).
+   Hand-edit freely — keep your changes unstaged. Run `/logbook:note end`
+   (or say "refresh context") when you want me back.
+   ```
+
+   Then stop and wait. Do not make further edits while the bracket is open.
+
+### End (refresh context)
+
+Triggered by `/logbook:note end` (or "refresh context"). Take the wheel back, paying specific attention to what changed.
+
+1. **Find the user's edits.**
+
+   ```bash
+   git diff                 # unstaged modifications to tracked files (vs the staged baseline)
+   git status --porcelain   # untracked (??) files = wholly new, hand-written files
+   ```
+
+   Read the full content of every changed and new file — not just the diff hunks — so the session model reflects the current state, not a delta against a stale memory.
+
+2. **Check isolation.** If `.git/logbook-wheel` is absent **and** nothing is staged (`git diff --cached --quiet` exits 0), `start` was never run, so the unstaged changes may include Claude's own uncommitted work. Say so and ask whether to proceed against everything unstaged or stop. Do not silently treat mixed changes as the user's edits.
+
+   If there are no unstaged changes and no untracked files, there's nothing to harvest — report that and resume.
+
+3. **Incorporate into the session.** State, concretely, what the edits change about how the rest of the session proceeds — a convention to follow, an approach to drop, a decision now settled. This is the "reload paying specific attention" step: the edits are now the source of truth, and Claude honors them going forward.
+
+4. **Infer the lesson per change, and classify it.** For each meaningful edit, name *why* the user made it, then sort it:
+
+   - **Local-only** — a one-off fix or preference specific to this spot, with nothing to generalize. Already applied (the user applied it by hand); just incorporate it and move on.
+   - **Generalizable** — the edit demonstrates a rule, convention, or correction that applies elsewhere. This is a lesson worth sweeping and possibly making durable.
+
+5. **Harvest the generalizable lessons.** Each one is an observation the user *demonstrated* instead of typed — route it through the existing machinery: identify the target (step 2), then propose a mode and confirm (step 3) and act (step 4). The natural default here is **This Session** — the user is right here and just demonstrated the fix, so sweep comparable sites now. Use **Future Session** when the lesson is real but belongs to another repo or a later batch. When several lessons share one target, batch them into a single mode decision rather than asking per lesson.
+
+   Surface the harvest before acting so the user can steer:
+
+   ```text
+   Read your edits across <N> files. Incorporated into the session.
+   Lessons:
+     1. <lesson> — generalizable → propose This Session (sweep)
+     2. <lesson> — local-only, incorporated, nothing to sweep
+   ```
+
+   Note that any generalizable lesson is also fair game for `/logbook:retro` at session end — the retro's "Observations" section is where these compound.
+
+6. **Close the bracket.** Remove the marker and return to a unified working tree so the session resumes normally:
+
+   ```bash
+   rm -f "$(git rev-parse --git-dir)/logbook-wheel"
+   git reset                # unstage the baseline; working tree (baseline + your edits) is untouched
+   ```
+
+   `git reset` (mixed) only clears the index — it changes nothing in the working tree and loses no work; everything the user and Claude did is still present, just unstaged. Report it so the state isn't a surprise:
+
+   ```text
+   Wheel's back with me. Unstaged the baseline — everything's in the working tree,
+   nothing committed or lost. Picking up where we were.
+   ```
+
 ## Sweep guidance
 
 The `This Session` mode is the high-leverage path. A note that becomes an inline fix plus a sweep raises the floor across the whole codebase in one shot — vs. `New Session` (one repo, asynchronously) or `Future Session` (zero repos, maybe never). Default to `This Session` when the target is reachable from the current session and the fix is small.
@@ -231,3 +340,11 @@ Conversely, do not force `This Session` for changes that legitimately need their
 ```
 
 → Mode: `Future Session` (needs reproduction first, not actionable yet). Emit the structured note.
+
+```text
+/logbook:note start
+  ...user rewrites a helper to use the tenant-prefix convention by hand...
+/logbook:note end
+```
+
+→ `start` stages the baseline and stands down. `end` reads the unstaged diff (the rewritten helper), incorporates the convention into the session, and harvests the lesson — "helpers must apply the tenant prefix" — as a `This Session` sweep across the other helpers that miss it.

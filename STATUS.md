@@ -4,9 +4,9 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-06-04
+**Last audit:** 2026-06-22
 **Spec version:** v0.1
-**Coverage:** 91 / 91 normative requirements (all Covered); 0 deferred
+**Coverage:** 97 / 97 normative requirements (all Covered); 0 deferred
 
 ## Status by category
 
@@ -21,9 +21,18 @@ revised.
 | INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
 | COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json` |
-| NOTE | 9 | All Covered | `skills/note/SKILL.md`; modes This/New/Future Session |
+| NOTE | 15 | All Covered | `skills/note/SKILL.md`; prose modes This/New/Future Session, plus the `start`/`end` hand-edit bracket |
 
 ## Audit history
+
+### 2026-06-22 — NOTE hand-edit bracket
+
+Added the `note start` / `note end` hand-edit bracket (`[NOTE-10]`–`[NOTE-15]`):
+`start` stages a baseline and stands down so the user can take the wheel; `end`
+reads the isolated unstaged diff, incorporates it into the session, and harvests
+generalizable lessons through the existing `[NOTE-3]` mode machinery. Pure
+skill-level logic (git + bash); no CLI surface touched. 91 → 97 normative
+requirements (+6).
 
 ### 2026-06-17 — pricing verified current
 
