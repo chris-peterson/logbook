@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.0
+
+### Features
+- **`/logbook:note start` / `/logbook:note end`** — a hand-edit bracket for taking the wheel. `start` stages everything as the assistant's last-known baseline and stands down so you can hand-edit files directly; `end` reads your isolated edits (the unstaged diff plus any new files), folds them into the session, and harvests the generalizable lessons through note's existing This / New / Future-Session machinery. Soft activations: "take the wheel" / "I'm gonna drive" / "let me drive" for start, "refresh context" for end. ([NOTE-10]–[NOTE-15])
+
+### Other
+- Spec coverage: 91 → 97 normative requirements (+6 for the note hand-edit bracket).
+
 ## 0.8.1
 
 ### Other
