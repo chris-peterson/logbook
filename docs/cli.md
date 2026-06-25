@@ -3,6 +3,8 @@
 ```text
 logbook session                                       print session info as JSON
 logbook session-id                                    print only the active session's id (fast)
+logbook note add <text> [--disposition --kind --target]   append a note to the session's log
+logbook note list [--session <id>] [--json]           list the session's notes
 logbook add-team <git-url> [--as <name>]              register a team retro repo
 logbook device-id                                     print/persist per-workstation id
 logbook config                                        print resolved config
