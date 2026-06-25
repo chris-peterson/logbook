@@ -4,6 +4,8 @@
 Single-file CLI. Subcommands:
     session                                       print session info as JSON
     session-id                                    print only the active session's id (fast)
+    note add <text> [--disposition --kind --target]   append a note to the session's log
+    note list [--session <id>] [--json]           list the session's notes
     add-team <git-url> [--as <name>]              register a team retro repo
     device-id                                     print/persist per-workstation id
     config                                        print resolved config
@@ -43,9 +45,13 @@ def _plugin_version() -> str:
 
 LOGBOOK_HOME = Path(os.environ.get("LOGBOOK_HOME") or (Path.home() / ".logbook"))
 REPOS_DIR = LOGBOOK_HOME / "repos"
+NOTES_DIR = LOGBOOK_HOME / "notes"
 CONFIG_PATH = LOGBOOK_HOME / "config.yaml"
 DEVICE_ID_PATH = LOGBOOK_HOME / "device-id"
 TEMPLATE_PATH = PLUGIN_ROOT / "templates" / "retro.md"
+
+NOTE_DISPOSITIONS = ("this-session", "issue", "deferred")
+NOTE_KINDS = ("friction", "win")
 
 DEVICE_ID_LENGTH = 12
 
@@ -55,6 +61,7 @@ _logbook() {
   local -a commands=(
     'session:print session info as JSON'
     'session-id:print only the active session id (fast)'
+    'note:record or list mid-session notes'
     'add-team:register a team retro git repo'
     'device-id:print or generate the per-workstation device id'
     'config:print resolved logbook config'
@@ -69,6 +76,11 @@ _logbook() {
     'estimate-cost:estimate session cost from token counts'
   )
 
+  local -a note_subs=(
+    'add:append a note to the active session log'
+    'list:list the active session notes'
+  )
+
   if (( CURRENT == 2 )); then
     _describe 'command' commands
     return
@@ -78,6 +90,11 @@ _logbook() {
     retro)
       if (( CURRENT == 3 )); then
         _describe 'retro subcommand' retro_subs
+      fi
+      ;;
+    note)
+      if (( CURRENT == 3 )); then
+        _describe 'note subcommand' note_subs
       fi
       ;;
     completions)
@@ -812,6 +829,7 @@ def _print_claude_session(session_id, transcript):
         tokens=stats.get("tokens"),
         transcript=transcript,
     )
+    output["notes"] = _load_notes(session_id)
     if transcript:
         output["detailed"] = _extract_claude_detailed(session_id, transcript)
     print(json.dumps(output, indent=2))
@@ -1034,6 +1052,101 @@ def cmd_session_id(args):
     print(resolved[0])
 
 
+# ── notes ──────────────────────────────────────────────────────────────────
+#
+# A note is a mid-session annotation on a session, pending synthesis into a
+# retro. Notes accumulate in an append-only log per session; `logbook session`
+# surfaces them as `notes[]` so a retro reads pre-gathered material instead of
+# reconstructing the session cold. The record schema is the contract downstream
+# retro implementations consume (SPEC [NOTE-17], [NOTE-21]).
+
+def _notes_path(session_id: str) -> Path:
+    return NOTES_DIR / f"{session_id}.jsonl"
+
+
+def _transcript_line_count(transcript: str | None) -> int:
+    """Current line offset into the transcript — 'where you are' at capture time."""
+    if not transcript:
+        return 0
+    try:
+        with open(transcript) as f:
+            return sum(1 for _ in f)
+    except OSError:
+        return 0
+
+
+def _load_notes(session_id: str) -> list:
+    path = _notes_path(session_id)
+    if not path.exists():
+        return []
+    notes = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                notes.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return notes
+
+
+def cmd_note_add(args):
+    resolved = _resolve_active_claude_session(args.workspace or ".")
+    if not resolved:
+        sys.exit("no Claude Code session detected — cannot record a note")
+    session_id, transcript = resolved
+
+    record = {
+        "text": args.text,
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+        "transcript_line": _transcript_line_count(transcript),
+    }
+    if args.disposition:
+        record["disposition"] = args.disposition
+    if args.kind:
+        record["kind"] = args.kind
+    if args.target:
+        record["target"] = args.target
+
+    path = _notes_path(session_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as f:
+        f.write(json.dumps(record) + "\n")
+
+    count = len(_load_notes(session_id))
+    print(f"noted (session {session_id}, transcript line {record['transcript_line']}) — {count} note(s) this session")
+
+
+def cmd_note_list(args):
+    if args.session:
+        session_id = args.session
+    else:
+        resolved = _resolve_active_claude_session(args.workspace or ".")
+        if not resolved:
+            sys.exit("no Claude Code session detected")
+        session_id = resolved[0]
+
+    notes = _load_notes(session_id)
+
+    if args.json:
+        print(json.dumps(notes, indent=2))
+        return
+
+    if not notes:
+        print(f"0 notes for session {session_id}")
+        return
+
+    print(f"{len(notes)} note(s) for session {session_id}:")
+    for i, n in enumerate(notes, 1):
+        tags = "/".join(t for t in (n.get("kind"), n.get("disposition")) if t)
+        prefix = f"[{tags}] " if tags else ""
+        line = n.get("transcript_line")
+        suffix = f" (line {line})" if line else ""
+        print(f"  {i}. {prefix}{_truncate(n.get('text', ''), 100)}{suffix}")
+
+
 # ── install-cli ────────────────────────────────────────────────────────────
 
 def _resolve_source_script() -> Path:
@@ -1118,6 +1231,23 @@ def main(argv=None):
     sp = sub.add_parser("session-id", help="print only the active session's id (fast)")
     sp.add_argument("workspace", nargs="?", default=".", help="workspace path (default: cwd)")
 
+    note_parser = sub.add_parser("note", help="record or list mid-session notes")
+    note_sub = note_parser.add_subparsers(dest="note_cmd")
+
+    na = note_sub.add_parser("add", help="append a note to the active session's log")
+    na.add_argument("text", help="the observation to record")
+    na.add_argument("--disposition", choices=NOTE_DISPOSITIONS, default=None,
+                    help="what was decided about the note")
+    na.add_argument("--kind", choices=NOTE_KINDS, default=None,
+                    help="friction or a positive ('win')")
+    na.add_argument("--target", default=None, help="the identified artifact path")
+    na.add_argument("--workspace", default=".", help="workspace path (default: cwd)")
+
+    nl = note_sub.add_parser("list", help="list the active session's notes")
+    nl.add_argument("--session", default=None, help="session id (default: active session)")
+    nl.add_argument("--json", dest="json", action="store_true", help="emit raw records as JSON")
+    nl.add_argument("--workspace", default=".", help="workspace path (default: cwd)")
+
     sp = sub.add_parser("add-team", help="register a team retro git repo")
     sp.add_argument("git_url")
     sp.add_argument("--as", dest="team_name", default=None,
@@ -1167,6 +1297,13 @@ def main(argv=None):
         cmd_session(args)
     elif args.cmd == "session-id":
         cmd_session_id(args)
+    elif args.cmd == "note":
+        if args.note_cmd == "add":
+            cmd_note_add(args)
+        elif args.note_cmd == "list":
+            cmd_note_list(args)
+        else:
+            note_parser.print_help()
     elif args.cmd == "add-team":
         cmd_add_team(args)
     elif args.cmd == "device-id":

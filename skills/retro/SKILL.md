@@ -24,7 +24,11 @@ Before running the steps below, compare `logbook --version` against the plugin v
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/logbook" session
 ```
 
-Returns JSON: `id`, `name`, `slug`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`, plus a `detailed` block with tool usage, files touched, timeline, user messages, overlapping sessions, concurrency (`overlapping`, `max_parallel`, `wall_hours`), git activity, initial context tokens, compaction events.
+Returns JSON: `id`, `name`, `slug`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`, a `notes` array (the observations captured this session via `/logbook:note`), plus a `detailed` block with tool usage, files touched, timeline, user messages, overlapping sessions, concurrency (`overlapping`, `max_parallel`, `wall_hours`), git activity, initial context tokens, compaction events.
+
+### Retro-worthiness signal
+
+Read `notes` first. Its length is the signal for whether this session earned a retro: if the user flagged observations mid-session, that *is* the evidence. Surface the count — "this session has N captured notes" — when confirming the user wants to proceed. A session with zero notes and little activity may not warrant one; say so rather than generating a thin retro.
 
 ## Step 1: Read the metrics
 
@@ -51,14 +55,16 @@ Show what was auto-detected and propose defaults:
 - **Session ID**: Auto-filled from the session output — do not ask.
 - **Device ID**: Auto-filled from `logbook device-id` — do not ask.
 
-Then ask the user to confirm or correct the defaults, and provide what can't be inferred:
+**Start from the captured notes.** The `notes` array from Step 0 is pre-gathered retro material — each entry carries the observation `text`, its `kind` (`friction` / `win`), and the `transcript_line` where it was raised. Sort them into the sections below and **confirm and expand** each with the user rather than reconstructing the session cold: a `win` seeds *What Worked Well*, a `friction` seeds *What Didn't Work* or an *Observation*. The notes are what the user already flagged as mattering; lead with them.
+
+Then ask the user to confirm or correct the defaults, and provide what the notes and metrics can't supply:
 
 - **Deliverable links**: PRs, MRs, repos, or other artifacts
 - **Brief description**: What was the task? What was the outcome?
 - **The prompt used** (if applicable): the working prompt that produced results
-- **What worked well** + **why** (not just "it worked")
-- **What didn't work**: specific things that went wrong or required iteration
-- **Observations**: generalizable lessons and actionable takeaways
+- **What worked well** + **why** (not just "it worked") — seeded by `win` notes
+- **What didn't work**: specific things that went wrong or required iteration — seeded by `friction` notes
+- **Observations**: generalizable lessons and actionable takeaways — expanded from the notes
 
 ## Step 3: Get the device id
 

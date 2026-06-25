@@ -1,7 +1,7 @@
 # logbook — Specification
 
-**Version:** 0.1
-**Status:** Draft (retroactive — written after the v0.1 implementation)
+**Version:** 0.2
+**Status:** Draft
 
 logbook is a log of important learnings, e.g. AI-assisted coding session retros. It turns an AI coding session — Claude Code, Cursor, or GitHub Copilot — into a retrospective committed to a team-owned git repository. It ships as both a Claude Code plugin and a standalone CLI. Transcripts stay on the author's workstation; only the retrospective is published.
 
@@ -18,7 +18,7 @@ Requirements use [EARS syntax](https://alistairmavin.com/ears) with formal requi
 | `COMP` | Shell completions |
 | `COST` | Cost estimation |
 | `SES`  | Session info detection |
-| `NOTE` | The `/logbook:note` mid-session observation skill |
+| `NOTE` | Mid-session notes — capture, durable log, disposition |
 
 ---
 
@@ -47,8 +47,9 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 ## CLI — Surface and Subcommands
 
 - `[CLI-1]` The system shall expose a single executable named `logbook` that accepts subcommands.
-- `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `add-team`, `device-id`, `config`, `retro`, `install-cli`, and `completions`.
+- `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `note`, `add-team`, `device-id`, `config`, `retro`, `install-cli`, and `completions`.
 - `[CLI-3]` The `retro` subcommand shall support the nested subcommands `publish`, `template-path`, and `estimate-cost`.
+- `[CLI-12]` The `note` subcommand shall support the nested subcommands `add` and `list`.
 - `[CLI-4]` When invoked with no subcommand, the CLI shall print top-level help to stdout and exit zero.
 - `[CLI-5]` The CLI shall be runnable directly via `python3 <path>/logbook <args>` without prior installation.
 - `[CLI-6]` Where the environment variable `CLAUDE_PLUGIN_ROOT` is set, the CLI shall resolve the plugin root from its value.
@@ -76,6 +77,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[SES-11a]` The `session-id` subcommand shall use the same detection precedence as `session`: `CLAUDE_CODE_SESSION_ID` env, then `claude`-ancestor PID lookup via `~/.claude/sessions/<pid>.json`, then the most-recently-modified Claude Code session for the current workspace.
 - `[SES-11b]` If no Claude Code session is detected, then `session-id` shall exit with a non-zero status and an actionable error.
 - `[SES-12]` Where the platform is not macOS, the behavior of Copilot and Cursor session detection ([SES-6], [SES-7]) is undefined — the implementation reads from paths under `~/Library/Application Support/`.
+- `[SES-13]` The `session` JSON shall include a top-level `notes` array holding the records from the active session's durable notes log ([NOTE-16]), in capture order, so a retro (or a spawned retro worker) receives them as pre-gathered material. Where the session has no notes log, `notes` shall be an empty array.
 
 ---
 
@@ -87,6 +89,8 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[RETRO-4]` The retro template shall instruct authors to include a YAML frontmatter block containing at minimum: `date`, `category`, `slug`, `session_id`, `device_id`, `cost`, `tool`, `model`.
 - `[RETRO-5]` The retro template shall include sections for Summary, Result, Timeline, Context, Synthesized Prompt, What Worked Well, What Didn't Work, Observations, and Applicability.
 - `[RETRO-6]` The template shall not require Feedback Targets, retro index updates, or pattern-table cross-references — those concerns belong to the consumer, not the plugin.
+- `[RETRO-7]` The `retro` skill shall read the active session's `notes` ([SES-13]) as pre-gathered retro material and synthesize from it — confirming and expanding the captured notes — rather than reconstructing the session cold.
+- `[RETRO-8]` The `retro` skill shall surface the count of captured notes as a retro-worthiness signal when proposing whether to generate a retro.
 
 ---
 
@@ -112,6 +116,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[PRIV-2]` The retro frontmatter shall include `session_id` and `device_id` so an author can correlate a published retro to their local session data.
 - `[PRIV-3]` The system shall not attempt to anonymize or hash these identifiers — they are opaque values whose privacy properties are owned by the caller.
 - `[PRIV-4]` Categories shall be free-form strings — the system shall not enforce a category whitelist.
+- `[PRIV-5]` The durable notes log ([NOTE-16]) is per-workstation state under `<LOGBOOK_HOME>/` — the system shall not publish it to a team retro repo. A retro author may quote or paraphrase notes into the authored retro document, but the raw log is not itself an artifact.
 
 ---
 
@@ -155,22 +160,44 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 
 ---
 
-## NOTE — Mid-Session Observation Skill
+## NOTE — Mid-Session Notes
 
-- `[NOTE-1]` The plugin shall expose a `note` skill at `skills/note/SKILL.md` that captures a mid-session observation about a target artifact (a rule, skill, `CLAUDE.md`, recipe, setting, or similar).
-- `[NOTE-2]` When invoked, the skill shall identify the target artifact from the observation. If multiple plausible targets exist, then the skill shall list the candidates and ask the user before proceeding.
-- `[NOTE-3]` The skill shall offer exactly three modes — `This Session`, `New Session`, `Future Session` — propose a default based on target location and observation scope, and confirm the chosen mode with the user before acting.
-- `[NOTE-4]` In `This Session` mode, the skill shall apply the change in the current session and shall sweep comparable sites per the `sweep-the-learnings` rule, reporting affected sites before returning to prior work.
-- `[NOTE-5]` In `New Session` mode, where iTerm2 is available the skill shall open a new tab and launch `claude` with a prompt pre-loaded from a temp file. The `osascript` that drives iTerm2 shall live in the bundled `scripts/open-iterm-tab.sh`, which the skill invokes with the repo path and temp-file path; where iTerm2 is unavailable the script shall print the equivalent manual command and exit non-zero. Carrying the `osascript` in a named script lets the permission layer allow this path exactly, rather than requiring a blanket allow of arbitrary `osascript`.
-- `[NOTE-6]` In `Future Session` mode, the skill shall not modify the target artifact and shall not spawn any session.
-- `[NOTE-7]` In `Future Session` mode, the skill shall write the structured note body to a unique temporary file and print the path so the user can open or attach the file in a follow-up step.
-- `[NOTE-8]` In `Future Session` mode, where a clipboard utility is available (`pbcopy` on macOS, `wl-copy` or `xclip` on Linux, `clip.exe` on Windows), the skill shall copy the note body to the system clipboard on a best-effort basis and report whether the copy succeeded.
-- `[NOTE-9]` In `Future Session` mode, where the current working directory is a git repository whose origin host is a recognized forge (currently `github.com` and any `gitlab.*` host), the skill shall print a "create issue" URL with the title and body query-encoded so a single click opens a pre-populated new-issue form. For unrecognized hosts or non-git directories the skill shall omit the URL without erroring.
+The `note` skill is a **recorder**: it captures a mid-session observation as
+retro material — friction *or* something that worked well — and appends it to a
+durable, session-scoped notes log. Recording is the primary act; the
+*disposition* (what to do about the note) is metadata on the record. logbook
+records that a disposition was chosen; actuation that lives outside its domain —
+spawning or forking sessions to another project — is delegated to the
+orchestration layer, not performed here.
+
+### Capture and disposition
+
+- `[NOTE-1]` The plugin shall expose a `note` skill at `skills/note/SKILL.md` that captures a mid-session observation — friction *or* a positive ("this worked well") — about a target artifact (a rule, skill, `CLAUDE.md`, recipe, setting, or similar) as retro material.
+- `[NOTE-2]` When invoked with a prose observation, the skill shall identify the target artifact from the observation. If multiple plausible targets exist, then the skill shall list the candidates and ask the user before proceeding.
+- `[NOTE-3]` On every prose-observation invocation, the skill shall record the observation to the durable notes log ([NOTE-16]) via `logbook note add` — this is the primary act, performed regardless of which disposition follows.
+- `[NOTE-4]` The skill shall assign each note a disposition of `this-session`, `issue`, or `deferred`, proposing a default from the target location and observation scope and confirming with the user before acting. The chosen disposition shall be recorded on the note ([NOTE-19]).
+- `[NOTE-5]` In the `this-session` disposition, the skill shall apply the change in the current session and shall sweep comparable sites per the `sweep-the-learnings` rule, reporting affected sites before returning to prior work.
+- `[NOTE-6]` In the `issue` disposition, the skill shall not modify the target artifact and shall not spawn a session; it shall write the structured note body to a unique temporary file and print the path so the user can open or attach the file in a follow-up step.
+- `[NOTE-7]` In the `issue` disposition, where a clipboard utility is available (`pbcopy` on macOS, `wl-copy` or `xclip` on Linux, `clip.exe` on Windows), the skill shall copy the note body to the system clipboard on a best-effort basis and report whether the copy succeeded.
+- `[NOTE-8]` In the `issue` disposition, where the current working directory is a git repository whose origin host is a recognized forge (currently `github.com` and any `gitlab.*` host), the skill shall print a "create issue" URL with the title and body query-encoded so a single click opens a pre-populated new-issue form. For unrecognized hosts or non-git directories the skill shall omit the URL without erroring.
+- `[NOTE-9]` In the `deferred` disposition, the skill shall take no action beyond the [NOTE-3] record; the note is left for `/logbook:retro` to consume.
+
+### Durable notes log
+
+- `[NOTE-16]` The system shall persist notes in an append-only log at `<LOGBOOK_HOME>/notes/<session-id>.jsonl`, one JSON object per line, where `<session-id>` is the active session's identifier.
+- `[NOTE-17]` Each note record shall contain at minimum `text` (the observation), `captured_at` (an ISO 8601 timestamp), and `transcript_line` (the line offset into the active session transcript at capture time — "where you are in the transcript"). A record may additionally carry `disposition` (`this-session` | `issue` | `deferred`), `kind` (`friction` | `win`), and `target` (the identified artifact path).
+- `[NOTE-18]` When invoked as `logbook note add <text>`, the CLI shall resolve the active session via the [SES-11a] detection precedence, compute `transcript_line` from the current transcript line count, append one record to that session's notes log, and create the log (and its parent directory) on first write. Where no session can be resolved, the CLI shall exit with a non-zero status and an actionable error.
+- `[NOTE-19]` The `note add` subcommand shall accept optional `--disposition`, `--kind`, and `--target` values and record them on the appended note.
+- `[NOTE-20]` When invoked as `logbook note list`, the CLI shall print the active session's notes — or those of the session named by `--session <id>` — and with `--json` shall emit the raw records; otherwise it shall print a human-readable summary that includes the note count. Where the session has no notes log, the CLI shall report zero notes and exit zero.
+- `[NOTE-21]` The note record schema of [NOTE-17] is the contract consumed by retro generation and by downstream retro implementations; a change to it shall be reflected in this spec.
+
+### Hand-edit bracket
+
 - `[NOTE-10]` The skill shall additionally support a hand-edit bracket, distinct from the prose-observation flow, invoked as `note start` and `note end` (also recognizing `begin` / `done` / `refresh` and equivalent natural phrasings such as "take the wheel" / "I'm gonna drive" / "let me drive" for start, and "refresh context" for end). The bracket lets the user hand-edit files and have the skill read those edits back as the observation.
 - `[NOTE-11]` On `note start`, where the working directory is a git repository, the skill shall stage all changes (`git add -A`) so the index records the assistant's last-known baseline, write a bracket marker under the repository's git directory, and stand down without making further edits until `end`. Where the working directory is not a git repository, the skill shall report this and not open a bracket.
 - `[NOTE-12]` On `note end`, the skill shall compute the user's hand-edits as the unstaged diff against the staged baseline together with any untracked files, read the changed and new files in full, and incorporate them into the session as the current source of truth.
 - `[NOTE-13]` On `note end`, if no bracket marker is present and nothing is staged, the skill shall warn that the user's edits cannot be isolated from other uncommitted work and ask the user whether to proceed before harvesting.
-- `[NOTE-14]` On `note end`, the skill shall infer the lesson behind each meaningful edit, classify it as local-only or generalizable, and route each generalizable lesson through the mode machinery of `[NOTE-3]` (`This Session` / `New Session` / `Future Session`).
+- `[NOTE-14]` On `note end`, the skill shall infer the lesson behind each meaningful edit, classify it as local-only or generalizable, record each generalizable lesson via [NOTE-3], and route it through the disposition machinery of `[NOTE-4]` (`this-session` / `issue` / `deferred`).
 - `[NOTE-15]` On `note end`, after harvesting the skill shall remove the bracket marker and unstage the baseline (`git reset`), returning the working tree to a unified uncommitted state without committing or discarding any work, and report that state.
 
 ---

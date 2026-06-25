@@ -4,26 +4,54 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-06-22
-**Spec version:** v0.1
-**Coverage:** 97 / 97 normative requirements (all Covered); 0 deferred
+**Last audit:** 2026-06-24
+**Spec version:** v0.2
+**Coverage:** 108 / 108 normative requirements (all Covered); 0 deferred
 
 ## Status by category
 
 | Prefix | Count | Status | Notes |
 |--------|------:|--------|-------|
 | CFG | 11 | All Covered | `scripts/logbook` config + state |
-| CLI | 11 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration now includes `install-cli`; CLI-11 (`help` alias for `--help`) |
-| SES | 14 | All Covered | `scripts/logbook` session detection; SES-5a/5b and SES-11a/11b each count as one (14, not 12) |
-| RETRO | 6 | All Covered | `templates/retro.md` |
+| CLI | 12 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration includes `note`; CLI-12 (`note add`/`list` nested) |
+| SES | 15 | All Covered | `scripts/logbook` session detection; SES-5a/5b and SES-11a/11b each count as one; SES-13 (`notes[]` in session JSON) |
+| RETRO | 8 | All Covered | `templates/retro.md`; RETRO-7/8 (`retro` reads `notes[]`, surfaces the count) — `skills/retro/SKILL.md` |
 | PUB | 11 | All Covered | `scripts/logbook` retro publish path |
-| PRIV | 4 | All Covered | Core contract |
+| PRIV | 5 | All Covered | Core contract; PRIV-5 (notes log is local-only, never published) |
 | INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
 | COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json` |
-| NOTE | 15 | All Covered | `skills/note/SKILL.md`; prose modes This/New/Future Session, plus the `start`/`end` hand-edit bracket |
+| NOTE | 21 | All Covered | `skills/note/SKILL.md` recorder model: dispositions This Session/File an issue/Defer to retro; durable notes log + `logbook note add`/`list` (`scripts/logbook`); `start`/`end` hand-edit bracket |
 
 ## Audit history
+
+### 2026-06-24 — recorder model: notes as a first-class noun (spec v0.2)
+
+Reframed `note` from "flag something broken + act on it" into a **recorder**:
+every note is captured as retro material, and the disposition is metadata on the
+record. logbook records that a disposition was chosen; it no longer performs
+session orchestration. Closes the capture → accumulate → synthesize loop end to
+end inside the plugin.
+
+- **Spec (SPEC.md) → v0.2** — `NOTE` concern rewritten. The `New Session`
+  forking disposition and its `[NOTE-5]` requirement are gone; dispositions are
+  now `this-session` / `issue` / `deferred`. Added the durable notes log:
+  `[NOTE-16]` (append-only `~/.logbook/notes/<id>.jsonl`), `[NOTE-17]` (record
+  schema — the downstream contract), `[NOTE-18]`/`[NOTE-19]` (`note add`),
+  `[NOTE-20]` (`note list`), `[NOTE-21]` (schema-is-contract). `[SES-13]`
+  (`notes[]` in session JSON), `[CLI-12]` (`note add`/`list`), `[PRIV-5]` (log is
+  local-only), `[RETRO-7]`/`[RETRO-8]` (`retro` reads `notes[]`, surfaces the
+  count as a worthiness signal).
+- **Implementation (`scripts/logbook`)** — `note add` (resolves the session,
+  captures the transcript line, appends a record) and `note list`; `session`
+  merges `notes[]`; argparse + zsh completions wired.
+- **Skills** — `skills/note/SKILL.md` rewritten for the recorder model;
+  `skills/retro/SKILL.md` reads `notes[]` and confirms-and-expands from it.
+- **Descoped** — deleted `scripts/open-iterm-tab.sh`; session forking/spawning
+  is the orchestration layer's job (file an issue and pull it into a session
+  there), not the recorder's.
+- **Coverage delta** — 97 → **108** normative requirements (+11). NOTE 15 → 21,
+  CLI 11 → 12, SES 14 → 15, RETRO 6 → 8, PRIV 4 → 5.
 
 ### 2026-06-22 — NOTE hand-edit bracket
 
