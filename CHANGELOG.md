@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.0
+
+### Features
+- **Session notes are now a first-class record.** `/logbook:note` captures every mid-session observation — friction *or* "this worked well" — into a durable per-session log (`~/.logbook/notes/<id>.jsonl`). `logbook session` surfaces them as `notes[]`, and `/logbook:retro` reads them so it synthesizes from pre-gathered material instead of reconstructing the session cold. The note count is surfaced as a retro-worthiness signal. ([NOTE-16]–[NOTE-21], [SES-13], [RETRO-7]/[RETRO-8])
+- **`logbook note add` / `logbook note list`** record and review a session's notes from any terminal. ([CLI-12])
+
+### Changed
+- **`/logbook:note` is now a recorder.** Recording the observation is the primary act; a note's disposition — This Session (apply + sweep), File an issue, or Defer to retro — is metadata on the record, not a fork in behavior, and every note is captured regardless of disposition.
+- **Removed the `New Session` note mode** (and its `open-iterm-tab.sh` helper). It spawned a Claude session into another project — orchestration, not record-keeping. To act on a note in another repo, file an issue and pull it into a session there.
+
+### Other
+- Spec to v0.2: the `NOTE` concern is rewritten around the recorder model and the durable-log contract; coverage 97 → 108 normative requirements.
+
 ## 0.9.0
 
 ### Features
