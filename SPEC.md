@@ -99,7 +99,8 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[PUB-1]` When invoked as `logbook retro publish <category> <slug> <source-dir>`, the CLI shall publish the contents of `<source-dir>` to `<clone>/retros/<category>/<slug>/` in the resolved team's local clone.
 - `[PUB-2]` Where `--team <name>` is passed, the CLI shall use the named team in place of `default_team`.
 - `[PUB-3]` If the named team is not registered, then the CLI shall exit with a non-zero status before performing any git operations.
-- `[PUB-4]` If `default_team` is unset and `--team` is not passed, then the CLI shall exit with a non-zero status before performing any git operations.
+- `[PUB-4]` If one or more teams are registered but `default_team` is unset and `--team` is not passed, then the CLI shall exit with a non-zero status before performing any git operations.
+- `[PUB-12]` If no team is configured (no `default_team` and no `teams`) and `--team` is not passed, then the CLI shall treat this as an opt-out: print the staged source directory and an actionable hint, then exit with status zero without performing any git operations.
 - `[PUB-5]` When publishing, the CLI shall fetch the remote and rebase the local clone before copying retro contents.
 - `[PUB-6]` If `git fetch` or `git pull --rebase` fails, then the CLI shall exit with a non-zero status, leaving the local clone in place for manual resolution.
 - `[PUB-7]` If `<clone>/retros/<category>/<slug>/` already exists, then the CLI shall exit with a non-zero status before overwriting.

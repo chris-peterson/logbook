@@ -281,10 +281,22 @@ def _run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(["git"] + args, cwd=cwd, capture_output=True, text=True)
 
 
+def _has_team_configured(config: dict) -> bool:
+    return bool(config.get("default_team") or config.get("teams"))
+
+
 def cmd_retro_publish(args):
     config = load_config()
-    if not config:
-        sys.exit("no logbook config — run /logbook add-team <git-url> first")
+
+    # No team configured and none named: treat as a deliberate opt-out.
+    # The retro is already staged; leave it there and exit cleanly rather than
+    # failing after the user has paid the full cost of generating the artifact.
+    if args.team is None and not _has_team_configured(config):
+        source = Path(args.source_dir).resolve()
+        print("no team configured — retro left staged at:")
+        print(source)
+        print("run '/logbook:logbook add-team <git-url>' to publish to a team repo.")
+        return
 
     team = _resolve_team(config, args.team)
     clone = REPOS_DIR / team

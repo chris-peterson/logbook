@@ -121,6 +121,8 @@ This:
 
 If multiple teams are registered, pass `--team <name>` to override the default.
 
+If no team is configured (no `default_team` and no `teams` in `~/.logbook/config.yaml`), publish is a no-op opt-out: the CLI prints the staged source directory and exits cleanly. Report where the retro is staged and that no team is configured — this is the expected outcome for users who run logbook without a team repo, not a failure.
+
 On rebase conflict or push failure, the CLI bails loudly and leaves the team clone in place for manual resolution.
 
 ## Step 7: Confirm
