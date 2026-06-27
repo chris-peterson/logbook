@@ -50,7 +50,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[CLI-1]` The system shall expose a single executable named `logbook` that accepts subcommands.
 - `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `note`, `add-team`, `device-id`, `config`, `export`, `import`, `retro`, `install-cli`, and `completions`.
 - `[CLI-3]` The `retro` subcommand shall support the nested subcommands `publish`, `template-path`, and `estimate-cost`.
-- `[CLI-12]` The `note` subcommand shall support the nested subcommands `add` and `list`.
+- `[CLI-12]` The `note` subcommand shall support the nested subcommands `add`, `list`, `harvest`, and `orphans`.
 - `[CLI-4]` When invoked with no subcommand, the CLI shall print top-level help to stdout and exit zero.
 - `[CLI-5]` The CLI shall be runnable directly via `python3 <path>/logbook <args>` without prior installation.
 - `[CLI-6]` Where the environment variable `CLAUDE_PLUGIN_ROOT` is set, the CLI shall resolve the plugin root from its value.
@@ -119,7 +119,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[PRIV-2]` The retro frontmatter shall include `session_id` and `device_id` so an author can correlate a published retro to their local session data.
 - `[PRIV-3]` The system shall not attempt to anonymize or hash these identifiers — they are opaque values whose privacy properties are owned by the caller.
 - `[PRIV-4]` Categories shall be free-form strings — the system shall not enforce a category whitelist.
-- `[PRIV-5]` The durable notes log ([NOTE-16]) is per-workstation state under `<LOGBOOK_HOME>/` — the system shall not publish it to a team retro repo. A retro author may quote or paraphrase notes into the authored retro document, but the raw log is not itself an artifact.
+- `[PRIV-5]` The durable notes log ([NOTE-16]) and its harvested archive ([NOTE-22], `<LOGBOOK_HOME>/notes/harvested/`) are per-workstation state under `<LOGBOOK_HOME>/` — the system shall not publish them to a team retro repo. A retro author may quote or paraphrase notes into the authored retro document, but the raw log is not itself an artifact.
 
 ---
 
@@ -137,6 +137,8 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[INST-10]` Team names shall match the pattern `^[a-z0-9][a-z0-9_-]*$`. If the supplied or derived name does not match, then the CLI shall exit with a non-zero status.
 - `[INST-11]` When invoked as `logbook install-cli [--dir <path>]`, the CLI shall write a bash wrapper to `<path>/logbook` (default `~/.local/bin/logbook`) that execs `python3 <plugin-root>/scripts/logbook "$@"`, and shall also install zsh completions per [COMP-3].
 - `[INST-12]` The plugin shall register a `SessionStart` hook that detects drift between the installed `logbook` CLI wrapper version and `<plugin-root>/.claude-plugin/plugin.json#version`, and surfaces an `additionalContext` notice when they differ. The hook shall be silent when versions match and silent when the CLI is not on PATH.
+- `[INST-13]` The plugin shall register a `SessionStart` hook that injects the orphan sessions ([NOTE-23]) as `additionalContext`, naming the starting session as current via `note orphans --current`, and stays silent when none exist.
+- `[INST-14]` The plugin shall register a `SessionEnd` hook that, when the closing session has un-harvested `deferred` notes, surfaces a `systemMessage` reminder that those notes are parked for a retro, and stays silent otherwise.
 
 ---
 
@@ -184,6 +186,15 @@ orchestration layer, not performed here.
 - `[NOTE-7]` In the `issue` disposition, where a clipboard utility is available (`pbcopy` on macOS, `wl-copy` or `xclip` on Linux, `clip.exe` on Windows), the skill shall copy the note body to the system clipboard on a best-effort basis and report whether the copy succeeded.
 - `[NOTE-8]` In the `issue` disposition, where the current working directory is a git repository whose origin host is a recognized forge (currently `github.com` and any `gitlab.*` host), the skill shall print a "create issue" URL with the title and body query-encoded so a single click opens a pre-populated new-issue form. For unrecognized hosts or non-git directories the skill shall omit the URL without erroring.
 - `[NOTE-9]` In the `deferred` disposition, the skill shall take no action beyond the [NOTE-3] record; the note is left for `/logbook:retro` to consume.
+
+### Harvest and orphan backstop
+
+A `deferred` note ([NOTE-9]) is consumed by a retro. The harvest lifecycle marks a session's notes consumed so they stop surfacing, and the orphan backstop finds sessions whose deferred notes are still waiting because no retro ran.
+
+- `[NOTE-22]` When invoked as `logbook note harvest <session-id>`, the CLI shall move that session's notes log from `<LOGBOOK_HOME>/notes/<session-id>.jsonl` to `<LOGBOOK_HOME>/notes/harvested/<session-id>.jsonl`, creating the `harvested/` directory on first use. The subcommand shall be idempotent: where the source log is absent, it shall report that and exit zero.
+- `[NOTE-23]` A session is an orphan when all of: it is not the current session; it is not live (its id is not the `sessionId` of any `~/.claude/sessions/<pid>.json` whose pid is alive); its transcript has been idle longer than a grace window (30 minutes); its notes log has not been harvested; and it carries at least one `deferred` note. Notes with `this-session` or `issue` dispositions have their own resolution paths ([NOTE-5], [NOTE-6]) and shall not make a session an orphan.
+- `[NOTE-24]` When invoked as `logbook note orphans`, the CLI shall list the sessions matching the [NOTE-23] predicate — with `--json` as raw records carrying at minimum `session_id`, `deferred_count`, and `idle_seconds`; otherwise as a human-readable summary including the count. The subcommand shall accept `--current <id>` to name the session treated as current, falling back to the [SES-11a] detection precedence when absent. Where no session matches, the CLI shall report none and exit zero.
+- `[NOTE-25]` A retro implementation that consumes a session's notes shall call `logbook note harvest <session-id>` at publish time, so harvesting fires regardless of which publish path the retro uses.
 
 ### Durable notes log
 

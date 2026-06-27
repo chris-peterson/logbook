@@ -6,25 +6,43 @@ revised.
 
 **Last audit:** 2026-07-08
 **Spec version:** v0.2
-**Coverage:** 123 / 123 normative requirements (all Covered); 0 deferred
+**Coverage:** 129 / 129 normative requirements (all Covered); 0 deferred
 
 ## Status by category
 
 | Prefix | Count | Status | Notes |
 |--------|------:|--------|-------|
 | CFG | 11 | All Covered | `scripts/logbook` config + state |
-| CLI | 12 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration includes `note`; CLI-12 (`note add`/`list` nested) |
+| CLI | 12 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration includes `note`; CLI-12 (`note add`/`list`/`harvest`/`orphans` nested) |
 | SES | 16 | All Covered | `scripts/logbook` session detection; SES-5a/5b and SES-11a/11b each count as one; SES-13 (`notes[]` in session JSON); SES-14 (sub-agent token roll-up + `tokens_breakdown`) |
 | RETRO | 8 | All Covered | `templates/retro.md`; RETRO-7/8 (`retro` reads `notes[]`, surfaces the count) — `skills/retro/SKILL.md` |
 | PUB | 11 | All Covered | `scripts/logbook` retro publish path |
 | PRIV | 5 | All Covered | Core contract; PRIV-5 (notes log is local-only, never published) |
-| INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
+| INST | 14 | All Covered | `commands/logbook.md`, `skills/`, `hooks/`; INST-13/14 (`SessionStart`/`SessionEnd` orphan-notes hook, `hooks/orphan-notes.sh`) |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
 | COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json` |
 | EXP | 14 | All Covered | `scripts/logbook` `export`/`import` + archive format (shipped in 0.12.0) |
-| NOTE | 21 | All Covered | `skills/note/SKILL.md` recorder model: dispositions This Session/File an issue/Defer to retro; durable notes log + `logbook note add`/`list` (`scripts/logbook`); `start`/`end` hand-edit bracket |
+| NOTE | 25 | All Covered | `skills/note/SKILL.md` recorder model: dispositions This Session/File an issue/Defer to retro; durable notes log + `logbook note add`/`list`/`harvest`/`orphans` (`scripts/logbook`); NOTE-22..25 (harvest lifecycle + orphan backstop); `start`/`end` hand-edit bracket |
 
 ## Audit history
+
+### 2026-07-08 — harvest lifecycle + orphan-notes backstop
+
+Closed the gap where a `deferred` note ([NOTE-9]) is stranded when a session
+ends before a retro runs. Added the harvest lifecycle and a two-ended backstop.
+
+- **Spec (SPEC.md)** — `[NOTE-22]` (`note harvest <sid>` moves the log to
+  `notes/harvested/`, idempotent), `[NOTE-23]` (orphan predicate: not current,
+  not live, idle past a 30-minute grace window, not harvested, has a `deferred`
+  note), `[NOTE-24]` (`note orphans` with `--json`/`--current`), `[NOTE-25]`
+  (a retro harvests at publish time). `[INST-13]`/`[INST-14]` (the
+  `SessionStart`/`SessionEnd` orphan-notes hook). `[CLI-12]` and `[PRIV-5]`
+  reworded for the new subcommands and the `harvested/` archive.
+- **Implementation** — `scripts/logbook` gains `cmd_note_harvest`,
+  `cmd_note_orphans`, `_orphan_sessions`, `_live_session_ids`, `_pid_is_alive`.
+  `hooks/orphan-notes.sh` registered for both events in `hooks/hooks.json`.
+- **Coverage delta** — +6 normative requirements (NOTE-22..25, INST-13/14);
+  123 → 129, all Covered.
 
 ### 2026-07-08 — sub-agent token roll-up + EXP backfill
 
