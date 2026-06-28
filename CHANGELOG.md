@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.0
+
+### Features
+- `logbook retro publish` now treats "no team configured" as a deliberate opt-out: it prints the staged retro path and exits 0, instead of failing with a fatal "no logbook config" error *after* the retro was already staged. Genuine misconfigurations — an unregistered named `--team`, or teams present with no `default_team` — still fail loudly.
+
 ## 0.10.0
 
 ### Features
