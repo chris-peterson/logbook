@@ -79,6 +79,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[SES-11b]` If no Claude Code session is detected, then `session-id` shall exit with a non-zero status and an actionable error.
 - `[SES-12]` Where the platform is not macOS, the behavior of Copilot and Cursor session detection ([SES-6], [SES-7]) is undefined — the implementation reads from paths under `~/Library/Application Support/`.
 - `[SES-13]` The `session` JSON shall include a top-level `notes` array holding the records from the active session's durable notes log ([NOTE-16]), in capture order, so a retro (or a spawned retro worker) receives them as pre-gathered material. Where the session has no notes log, `notes` shall be an empty array.
+- `[SES-14]` For Claude Code sessions, the `tokens` block shall aggregate LLM usage across the **parent transcript and every sub-agent transcript** the session spawned — including workflow-spawned agents — so cost estimation reflects the entire orchestration tree, not just the orchestrator. Sub-agent transcripts are located in the sidecar directory named for the session id alongside the parent transcript (`<projects>/<encoded-cwd>/<session-id>/subagents/**/agent-*.jsonl`). Where at least one sub-agent transcript is present, the output shall additionally include a `tokens_breakdown` object with `parent`, `subagents`, and `subagent_count` so consumers can render a parent-vs-sub-agent split without re-parsing transcripts.
 
 ---
 

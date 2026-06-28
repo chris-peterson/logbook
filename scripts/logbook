@@ -531,6 +531,59 @@ def _parse_claude_transcript(path):
     return stats
 
 
+def _sum_subagent_tokens(transcript_path):
+    """Aggregate token usage from every sub-agent transcript Claude Code wrote
+    alongside the main transcript.
+
+    Claude Code stores sub-agent transcripts in a sidecar directory named after
+    the session id (e.g. `<projects>/.../<sid>/subagents/agent-*.jsonl`), with
+    workflow-spawned agents nested one level deeper under `subagents/workflows/
+    <run_id>/agent-*.jsonl`. The parent transcript's `usage` blocks only cover
+    LLM calls the *parent* made — every sub-agent's own LLM calls live in its
+    own jsonl. Without aggregating these, `tokens` (and any downstream cost
+    estimate) silently undercounts multi-agent sessions by their orchestrated
+    sub-agents — often the bulk of the bill (see ai-sdlc's
+    bridge-ai-ralph-burndown retro, where parent-only reporting understated the
+    campaign cost by ~65%).
+
+    Returns (totals_dict, subagent_count). Empty / missing dir → zeros.
+    """
+    totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
+    if not transcript_path:
+        return totals, 0
+    p = Path(transcript_path)
+    sidecar = p.with_suffix("")  # strip .jsonl → same path as the session-id dir
+    if not sidecar.is_dir():
+        return totals, 0
+    count = 0
+    for jf in sidecar.glob("subagents/**/agent-*.jsonl"):
+        count += 1
+        try:
+            with open(jf) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    msg = obj.get("message")
+                    if isinstance(msg, dict):
+                        usage = msg.get("usage")
+                        if usage:
+                            for key in totals:
+                                totals[key] += usage.get(key, 0)
+        except OSError:
+            continue
+    return totals, count
+
+
 def _extract_claude_detailed(session_id, transcript_path):
     messages = []
     compaction_events = []
@@ -855,6 +908,15 @@ def _resolve_active_claude_session(workspace_path):
 
 def _print_claude_session(session_id, transcript):
     stats = _parse_claude_transcript(transcript) if transcript else {}
+    parent_tokens = stats.get("tokens") or {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+    }
+    subagent_tokens, subagent_count = _sum_subagent_tokens(transcript)
+    rollup = {k: parent_tokens.get(k, 0) + subagent_tokens.get(k, 0) for k in parent_tokens}
+    tokens_for_output = rollup if any(v > 0 for v in rollup.values()) else None
     output = _format_session(
         id=session_id,
         name=stats.get("name"),
@@ -862,9 +924,17 @@ def _print_claude_session(session_id, transcript):
         model=stats.get("model"),
         start=stats.get("createdAt"),
         end=stats.get("lastUpdatedAt"),
-        tokens=stats.get("tokens"),
+        tokens=tokens_for_output,
         transcript=transcript,
     )
+    if subagent_count > 0:
+        # Expose the parent/sub-agent split so consumers (e.g. retro skill) can
+        # render a faithful breakdown without re-parsing transcripts.
+        output["tokens_breakdown"] = {
+            "parent": parent_tokens,
+            "subagents": subagent_tokens,
+            "subagent_count": subagent_count,
+        }
     output["notes"] = _load_notes(session_id)
     if transcript:
         output["detailed"] = _extract_claude_detailed(session_id, transcript)
