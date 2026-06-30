@@ -1,6 +1,6 @@
 ---
 name: session-id
-description: Print only the active session's id — fast path for when you just need the id. Triggers on 'session id', 'session-id', 'what is my session id'.
+description: Print only the active session's id — fast path for when you just need the id.
 ---
 
 # `/logbook:session-id`

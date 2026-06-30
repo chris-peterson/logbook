@@ -1,6 +1,6 @@
 ---
 name: note
-description: Record a mid-session observation — friction or something that worked well — as retro material, then pick a disposition: This Session (apply + sweep here), File an issue (durable, for later), or Defer to retro (just capture it). Every note is logged to the session's notes[], which /logbook:retro reads. Or bracket a hand-editing handoff: 'note start' stages a baseline and stands down so you can take the wheel, 'note end' reads your isolated edits and harvests the lessons. Triggers on 'note', 'log a note', 'make a note', 'something is off', 'this should be fixed', 'this worked well', 'capture this', 'take the wheel', "I'm gonna drive", 'let me drive', 'refresh context', 'note start', 'note end'.
+description: Record a mid-session observation — friction or a win — into the session's notes[] for the retro, then act on it; or bracket a hand-editing handoff with 'note start' / 'note end'. Triggers on 'something is off', 'this worked well', 'take the wheel', 'let me drive', 'note start', 'note end'.
 argument-hint: "<observation> | start | end"
 ---
 
