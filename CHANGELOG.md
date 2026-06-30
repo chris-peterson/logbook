@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.1
+
+### Other
+- Trimmed the `description` frontmatter of the logbook skills (`note`, `retro`, `session-id`) to cut the always-resident context cost. `note` keeps its high-signal natural-language cues ("something is off", "this worked well", "take the wheel", "let me drive") and the `note start` / `note end` handoff; `retro` keeps "capture this session"; the redundant name-echo triggers are dropped.
+
 ## 0.11.0
 
 ### Features
