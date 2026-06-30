@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.11.2
+
+### Other
+- `session-id`, `retro`, and the `logbook` command are now `disable-model-invocation` — dropped from every session's always-resident context, still available via `/`.
+- `note` stays model-invocable, but its trigger cues moved from inline description text to the `when_to_use` field and were tightened: it auto-fires on a `note:` / `bug:` prefix, or when you say it's for the retro.
+
 ## 0.11.1
 
 ### Other
