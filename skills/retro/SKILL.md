@@ -1,6 +1,7 @@
 ---
 name: retro
-description: Generate a retrospective document from the current AI coding session and publish it to the team retro repo. Triggers on 'capture this session'.
+disable-model-invocation: true
+description: Generate a retrospective document from the current AI coding session and publish it to the team retro repo.
 argument-hint: "[category]"
 ---
 

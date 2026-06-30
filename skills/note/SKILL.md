@@ -1,6 +1,7 @@
 ---
 name: note
-description: Record a mid-session observation — friction or a win — into the session's notes[] for the retro, then act on it; or bracket a hand-editing handoff with 'note start' / 'note end'. Triggers on 'something is off', 'this worked well', 'take the wheel', 'let me drive', 'note start', 'note end'.
+description: Record a mid-session observation — friction or a win — into the session's notes[] for the retro, then act on it; or bracket a hand-editing handoff with 'note start' / 'note end'.
+when_to_use: "Use when the user prefixes a message 'note:' or 'bug:', or says it's for the retro."
 argument-hint: "<observation> | start | end"
 ---
 
