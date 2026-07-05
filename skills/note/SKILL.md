@@ -1,7 +1,6 @@
 ---
 name: note
-description: Record a mid-session observation — friction or a win — into the session's notes[] for the retro, then act on it; or bracket a hand-editing handoff with 'note start' / 'note end'.
-when_to_use: "Use when the user prefixes a message 'note:' or 'bug:', or says it's for the retro."
+description: Record a mid-session observation — friction or a win — as retro material, then act on it. Use when the user prefixes a message 'note:' or 'bug:', says it's for the retro, or brackets a hand-editing handoff with 'note start' / 'note end'.
 argument-hint: "<observation> | start | end"
 ---
 
@@ -31,17 +30,17 @@ There are two ways to raise a note — same destination (`notes[]`), different i
 flowchart TD
     Start(["/logbook:note &lt;observation&gt;"]) --> HasArgs{Observation provided?}
     HasArgs -->|No| Ask["Ask what to note"]
-    HasArgs -->|Yes| Identify["Identify target + kind<br/>(friction / win)"]
+    HasArgs -->|Yes| Identify["Identify target + kind (friction / win)"]
     Ask --> Identify
-    Identify --> Disp["Propose a disposition +<br/>confirm with user"]
-    Disp --> Record["logbook note add<br/>(always — primary act)"]
+    Identify --> Disp["Propose a disposition, confirm with user"]
+    Disp --> Record["logbook note add — primary act, always"]
     Record --> Mode{Disposition?}
     Mode -->|This Session| Apply["Apply fix in current session"]
     Apply --> Sweep["Sweep comparable sites"]
     Sweep --> Resume([Resume prior work])
-    Mode -->|File an issue| Emit["Emit note body +<br/>clipboard + issue URL"]
+    Mode -->|File an issue| Emit["Emit note body + clipboard + issue URL"]
     Emit --> Resume
-    Mode -->|Defer to retro| Done["Nothing more —<br/>retro consumes it"]
+    Mode -->|Defer to retro| Done["Nothing more — retro consumes it"]
     Done --> Resume
 ```
 
@@ -57,8 +56,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/logbook" <subcommand> [args]
 
 Read the first token of `$ARGUMENTS`:
 
-- `start` / `begin` (or a "take the wheel" phrasing — "I'm gonna drive", "let me drive") → **[Hand-edit mode → Start](#start-take-the-wheel)**.
-- `end` / `done` / `refresh` (or "refresh context") → **[Hand-edit mode → End](#end-refresh-context)**.
+- `start` / `begin` (or a "take the wheel" phrasing — "I'm gonna drive", "let me drive") → **hand-edit mode**; read [`references/hand-edit-mode.md`](references/hand-edit-mode.md) and follow *Start*.
+- `end` / `done` / `refresh` (or "refresh context") → **hand-edit mode**; read [`references/hand-edit-mode.md`](references/hand-edit-mode.md) and follow *End*.
 - anything else, or empty → **prose observation**: continue at step 1.
 
 ### 1. Capture
@@ -134,71 +133,9 @@ Then resume the work the user was doing when the note was raised.
 
 ### 4b. Disposition: `File an issue`
 
-Emit a structured note the user can review, attach, or file as an issue. No file in the target repo is modified and no session is spawned. The skill produces three artifacts in one pass: a tempfile on disk, the body on the system clipboard, and (when the cwd is a git repo on a known forge) a pre-filled "new issue" URL.
+Emit a structured note the user can review, attach, or file as an issue — nothing in the target repo is modified and no session is spawned. In one pass the skill writes the note to a tempfile, copies the body to the clipboard, and (when the cwd is a git repo on a known forge) builds a pre-filled "new issue" URL. Lead the summary with the action, and render any issue URL as a markdown hyperlink, never the raw query string.
 
-**Title** — a short, specific phrase naming the change you want, in the imperative or as a statement of the desired end state. The issue already records its own date and the body carries the detail, so the title is just the headline. Keep it terse — aim for under ~60 characters and drop trailing qualifiers. Don't prefix it with `Note:` or a date.
-
-**Body shape** — assemble these fields from the observation. No date line and no `**Note**` lead — the forge stamps the date, and the title is the summary:
-
-```markdown
-**Target:** <path or "TBD">
-
-**Observation:** <full text>
-
-**Why this matters:** <one or two sentences, if the user supplied them>
-
-**Suggested action:** <if obvious — otherwise omit>
-```
-
-**Write to a tempfile.** Use `mktemp -u` with a unique template and a `.md` extension so the path doesn't collide with peer sessions and Cmd+click opens the registered editor. `-u` prints the name without creating the file, so the `Write` tool treats it as a fresh path — on macOS this sidesteps the "overwrite via a symlink" prompt that plain `mktemp` triggers (it pre-creates the file behind the `/tmp` → `/private/tmp` symlink). The flag is portable across BSD and GNU `mktemp`:
-
-```bash
-TMPFILE=$(mktemp -u /tmp/logbook-note.XXXXXX.md)
-# Write the body to "$TMPFILE" via the Write tool, then reference $TMPFILE.
-```
-
-**Copy to clipboard** — best-effort, never erroring:
-
-```bash
-if   command -v pbcopy   >/dev/null; then pbcopy < "$TMPFILE"                    # macOS
-elif command -v wl-copy  >/dev/null; then wl-copy < "$TMPFILE"                   # Wayland
-elif command -v xclip    >/dev/null; then xclip -selection clipboard < "$TMPFILE" # X11
-elif command -v clip.exe >/dev/null; then clip.exe < "$TMPFILE"                  # Windows / WSL
-fi
-```
-
-Record whether at least one copy succeeded — surface "copied to clipboard" or "clipboard unavailable" in the summary.
-
-**Build a "new issue" URL** when cwd is a git repo on a recognized forge. URL emission lives here; actually filing via `gh`/`glab` is deferred.
-
-Detect the forge from `git remote get-url origin`:
-
-| Host | URL template |
-|---|---|
-| `github.com` | `https://github.com/<owner>/<repo>/issues/new?title=<title>&body=<body>` |
-| `gitlab.com` or any `gitlab.*` host | `https://<host>/<owner>/<repo>/-/issues/new?issue[title]=<title>&issue[description]=<body>` |
-
-Strip a trailing `.git` from the repo segment. Both `title` and `body` must be URL-encoded (`%`, spaces → `%20`, newlines → `%0A`, etc.). If the cwd isn't a git repo, the origin isn't recognized, or the URL would exceed ~8 KB after encoding, omit the URL — print the file path and clipboard status only.
-
-**Print a summary** — lead with the action. Render the prefilled issue URL as a markdown hyperlink with a short label, never the raw query string. Name the target repo so the user knows where the issue lands, link the note file, and note the clipboard in passing.
-
-When a forge URL was built:
-
-```text
-Captured for <owner>/<repo> — nothing modified, no session spawned.
-→ **[File the issue](<prefilled-url>)** · note: [logbook-note.<id>.md](file:///tmp/logbook-note.<id>.md) (copied to clipboard)
-```
-
-When no URL (cwd isn't a recognized forge repo, or the encoded URL was too long):
-
-```text
-Captured — nothing modified, no session spawned.
-Note saved to [logbook-note.<id>.md](file:///tmp/logbook-note.<id>.md) (copied to clipboard); file it manually when ready.
-```
-
-If the clipboard copy failed, say `(clipboard unavailable)` in place of `(copied to clipboard)`.
-
-To work it now in another repo, file the issue and pull it into a fresh session there (`/recipe`), so that project's rules and hooks apply. Then resume prior work.
+Read **[`references/file-an-issue.md`](references/file-an-issue.md)** before acting — it carries the full mechanics: title/body shape, the `mktemp -u` tempfile rationale, the clipboard fallback chain, forge URL templates and encoding rules, and the exact summary formats.
 
 ### 4c. Disposition: `Defer to retro`
 
@@ -210,97 +147,9 @@ Captured for the retro. <N> note(s) this session.
 
 ## Hand-edit mode: take the wheel
 
-Most of the time the user lets Claude drive. Occasionally they want to take the wheel and hand-edit files — to correct a convention, fix something faster than describing it, or shape code the way they want it. This mode brackets that handoff so the edits don't just land silently: `end` reads them back, updates Claude's model for the rest of the session, and harvests the generalizable lessons into the same record/disposition path a prose note uses.
+Occasionally the user takes the wheel and hand-edits files directly — to correct a convention, fix something faster than describing it, or shape code the way they want it. `/logbook:note start` … `/logbook:note end` brackets that handoff so the edits don't land silently. `start` stages Claude's work as a git baseline (`git add -A`) so the user's hand-edits stay isolated in the unstaged diff; `end` reads those edits back, incorporates them into the session, and harvests the generalizable lessons through the same record/disposition machinery a prose note uses. The natural default at `end` is **This Session** — the user just demonstrated the fix, so sweep comparable sites now.
 
-The bracket relies on one git trick. `start` stages everything as Claude's last-known baseline (`git add -A`), so the index *is* the baseline. The user's hand-edits then stay unstaged, and `git diff` (working tree vs index) shows **exactly** their edits — isolated from any uncommitted work Claude left behind. Without `start`, that isolation isn't possible and `end` says so.
-
-```mermaid
-%%{ init: { 'look': 'handDrawn' } }%%
-flowchart TD
-    StartCmd(["/logbook:note start"]) --> Stage["git add -A<br/>(index = Claude's baseline)"]
-    Stage --> Marker["Write .git/logbook-wheel marker"]
-    Marker --> StandDown["Stand down — user hand-edits,<br/>changes stay unstaged"]
-    StandDown --> EndCmd(["/logbook:note end"])
-    EndCmd --> Diff["git diff + untracked<br/>= the user's isolated edits"]
-    Diff --> Reread["Re-read changed files;<br/>update session model"]
-    Reread --> Lessons["Per change: infer the lesson,<br/>classify local vs generalizable"]
-    Lessons --> Harvest["Generalizable → record +<br/>disposition machinery"]
-    Harvest --> Close["Remove marker; unstage (git reset)"]
-    Close --> Resume([Resume — Claude drives again])
-```
-
-### Start (take the wheel)
-
-Triggered by `/logbook:note start`. Hand the wheel to the user.
-
-1. **Confirm a git repo.** Run `git rev-parse --is-inside-work-tree`. If it isn't a repo, say so and stop — the bracket needs git to isolate the diff.
-2. **Check for an open bracket.** If `.git/logbook-wheel` already exists, a bracket is already open. Tell the user when it was opened and re-baseline (re-stage and refresh the marker) rather than erroring.
-3. **Stage the baseline.** `git add -A` — the index now reflects Claude's last-known state, including untracked files Claude created.
-4. **Drop the marker.** Record that the bracket is open and when:
-
-   ```bash
-   date -u +%Y-%m-%dT%H:%M:%SZ > "$(git rev-parse --git-dir)/logbook-wheel"
-   ```
-
-   The marker lives in `.git/` — repo-local, never committed, and the deterministic signal `end` reads to know a bracket is open (rather than inferring it from index state).
-5. **Stand down and report.** Tell the user the wheel is theirs:
-
-   ```text
-   Wheel is yours. Staged my work as the baseline (index = last-known state).
-   Hand-edit freely — keep your changes unstaged. Run `/logbook:note end`
-   (or say "refresh context") when you want me back.
-   ```
-
-   Then stop and wait. Do not make further edits while the bracket is open.
-
-### End (refresh context)
-
-Triggered by `/logbook:note end` (or "refresh context"). Take the wheel back, paying specific attention to what changed.
-
-1. **Find the user's edits.**
-
-   ```bash
-   git diff                 # unstaged modifications to tracked files (vs the staged baseline)
-   git status --porcelain   # untracked (??) files = wholly new, hand-written files
-   ```
-
-   Read the full content of every changed and new file — not just the diff hunks — so the session model reflects the current state, not a delta against a stale memory.
-
-2. **Check isolation.** If `.git/logbook-wheel` is absent **and** nothing is staged (`git diff --cached --quiet` exits 0), `start` was never run, so the unstaged changes may include Claude's own uncommitted work. Say so and ask whether to proceed against everything unstaged or stop. Do not silently treat mixed changes as the user's edits.
-
-   If there are no unstaged changes and no untracked files, there's nothing to harvest — report that and resume.
-
-3. **Incorporate into the session.** State, concretely, what the edits change about how the rest of the session proceeds — a convention to follow, an approach to drop, a decision now settled. This is the "reload paying specific attention" step: the edits are now the source of truth, and Claude honors them going forward.
-
-4. **Infer the lesson per change, and classify it.** For each meaningful edit, name *why* the user made it, then sort it:
-
-   - **Local-only** — a one-off fix or preference specific to this spot, with nothing to generalize. Already applied (the user applied it by hand); just incorporate it and move on.
-   - **Generalizable** — the edit demonstrates a rule, convention, or correction that applies elsewhere. This is a lesson worth recording and sweeping.
-
-5. **Harvest the generalizable lessons.** Each one is an observation the user *demonstrated* instead of typed — route it through the same machinery: identify the target (step 2), record it (step 4), then propose a disposition (step 3) and act. The natural default here is **This Session** — the user is right here and just demonstrated the fix, so sweep comparable sites now. Use **File an issue** when the lesson is real but belongs to another repo or a later batch, and **Defer to retro** when it's worth remembering but not acting on now. When several lessons share one target, batch them into a single disposition decision rather than asking per lesson.
-
-   Surface the harvest before acting so the user can steer:
-
-   ```text
-   Read your edits across <N> files. Incorporated into the session.
-   Lessons:
-     1. <lesson> — generalizable → propose This Session (sweep)
-     2. <lesson> — local-only, incorporated, nothing to sweep
-   ```
-
-6. **Close the bracket.** Remove the marker and return to a unified working tree so the session resumes normally:
-
-   ```bash
-   rm -f "$(git rev-parse --git-dir)/logbook-wheel"
-   git reset                # unstage the baseline; working tree (baseline + your edits) is untouched
-   ```
-
-   `git reset` (mixed) only clears the index — it changes nothing in the working tree and loses no work; everything the user and Claude did is still present, just unstaged. Report it so the state isn't a surprise:
-
-   ```text
-   Wheel's back with me. Unstaged the baseline — everything's in the working tree,
-   nothing committed or lost. Picking up where we were.
-   ```
+Read **[`references/hand-edit-mode.md`](references/hand-edit-mode.md)** before running either half — it carries the full *Start* and *End* procedures, the `.git/logbook-wheel` marker mechanism, and the isolation checks that keep the bracket safe when `start` was skipped.
 
 ## Disposition guidance
 
