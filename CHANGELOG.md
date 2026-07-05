@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.11.3
+
+### Fixes
+- `/logbook:note` reliably auto-fires again on a `note:` / `bug:` prefix (or when you say it's "for the retro"). In 0.11.2 those trigger cues had been moved to a `when_to_use` frontmatter field that Claude Code doesn't read, making auto-invocation unreliable; they're folded back into the skill `description`, which is always read.
+
+### Other
+- `plugin.json` now carries `author` and `repository`, so attribution and source surface in the plugin manifest and the marketplace listing.
+- The `note` skill's always-resident body is ~40% smaller (3,228 → 1,903 words): hand-edit mode and the File-an-issue mechanics moved to reference files loaded only when that path runs, cutting the context cost every session pays to keep the skill available.
+- Fixed Mermaid node labels in the `note` skill that used `<br/>`, which doesn't render.
+
 ## 0.11.2
 
 ### Other
