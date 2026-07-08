@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.12.0
+
+### Features
+- **Export and import your session notes.** `logbook export` emits a session's notes as a JSON archive — to the console by default, or to a file with `--out-file` (optionally gzipped via `--compress`). By default it exports the active session; `--session <id>` targets one and `--all` dumps every session. `logbook import <path|->` restores them, merging by default (idempotent, never touches existing notes) or overwriting with `--replace`, with `--dry-run` to preview; it reads plain or gzipped archives, and `-` reads from stdin.
+- **Notes now join cleanly with tack and beacon.** The export archive is keyed by session id — the same id tack records per route and beacon carries per session — so a session's logbook notes, tack route, and beacon activity line up in one join.
+- Tab-completion now covers `export` and `import` and their flags.
+
+### Other
+- A CI test guards the zsh completion against drifting from the CLI's actual commands and flags, so a newly added subcommand can't silently ship without completion. The existing `plugin.json`-in-sync check now also runs in CI (previously local-only).
+- SPEC: new `EXP` section specifying the export/import surface and archive format.
+
 ## 0.11.3
 
 ### Fixes
