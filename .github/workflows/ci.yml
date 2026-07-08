@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Run tests (CLI ↔ completion drift)
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Check plugin.json is in sync with plugin.yml
+        run: |
+          pip install pyyaml
+          python3 scripts/gen-plugin-json.py --check

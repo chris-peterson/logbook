@@ -19,6 +19,7 @@ Requirements use [EARS syntax](https://alistairmavin.com/ears) with formal requi
 | `COST` | Cost estimation |
 | `SES`  | Session info detection |
 | `NOTE` | Mid-session notes — capture, durable log, disposition |
+| `EXP`  | Export and import of the notes stash |
 
 ---
 
@@ -47,7 +48,7 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 ## CLI — Surface and Subcommands
 
 - `[CLI-1]` The system shall expose a single executable named `logbook` that accepts subcommands.
-- `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `note`, `add-team`, `device-id`, `config`, `retro`, `install-cli`, and `completions`.
+- `[CLI-2]` The CLI shall support the subcommands `session`, `session-id`, `note`, `add-team`, `device-id`, `config`, `export`, `import`, `retro`, `install-cli`, and `completions`.
 - `[CLI-3]` The `retro` subcommand shall support the nested subcommands `publish`, `template-path`, and `estimate-cost`.
 - `[CLI-12]` The `note` subcommand shall support the nested subcommands `add` and `list`.
 - `[CLI-4]` When invoked with no subcommand, the CLI shall print top-level help to stdout and exit zero.
@@ -200,6 +201,35 @@ orchestration layer, not performed here.
 - `[NOTE-13]` On `note end`, if no bracket marker is present and nothing is staged, the skill shall warn that the user's edits cannot be isolated from other uncommitted work and ask the user whether to proceed before harvesting.
 - `[NOTE-14]` On `note end`, the skill shall infer the lesson behind each meaningful edit, classify it as local-only or generalizable, record each generalizable lesson via [NOTE-3], and route it through the disposition machinery of `[NOTE-4]` (`this-session` / `issue` / `deferred`).
 - `[NOTE-15]` On `note end`, after harvesting the skill shall remove the bracket marker and unstage the baseline (`git reset`), returning the working tree to a unified uncommitted state without committing or discarding any work, and report that state.
+
+---
+
+## EXP — Export and Import
+
+Notes are an ephemeral, session-scoped stash (`[NOTE-16]`): captured mid-session, consumed at retro, durable only so a session closed early or abandoned does not lose them. Export and import move that stash between workstations, recover an abandoned session's notes, or produce an artifact that joins with tack's and beacon's data. The join key is the Claude Code session id — the same id tack records in `route.sessions[].id` and beacon carries in its wip payload's `session`.
+
+### Archive format
+
+- `[EXP-1]` The export archive shall be a JSON document with top-level keys `schemaVersion` (integer), `exportedAt` (ISO 8601 timestamp), `generator` (`logbook <version>`), `device_id` (the exporting workstation's device id, or null), and `sessions` (an array).
+- `[EXP-2]` Each `sessions[]` entry shall contain `session_id` (the Claude Code session id) and `notes` (the session's note records per `[NOTE-17]`, in capture order). Sessions with no notes shall be omitted.
+- `[EXP-3]` The current archive `schemaVersion` shall be `1`. Import shall refuse an archive whose `schemaVersion` exceeds the reader's, exiting non-zero with an actionable message, so a future revision can ship a migration rather than silently mishandling unknown fields.
+
+### Export
+
+- `[EXP-4]` When invoked as `logbook export`, the CLI shall build an archive and, by default, write its JSON to stdout.
+- `[EXP-5]` With no `--session` or `--all`, `export` shall resolve the active session via the `[SES-11a]` detection precedence and export only that session; where no session is detected it shall exit non-zero with an actionable message.
+- `[EXP-6]` Where `--session <id>` is passed, `export` shall export only that session's notes. Where `--all` is passed, `export` shall export every session with a notes log under `<LOGBOOK_HOME>/notes/`.
+- `[EXP-7]` Where `--out-file <path>` is passed, `export` shall write the archive to that path instead of stdout and print a one-line summary of the counts, size, and schema version.
+- `[EXP-8]` Where `--compress` is passed, `export` shall gzip the archive bytes, whether the sink is a file or stdout.
+
+### Import
+
+- `[EXP-9]` When invoked as `logbook import <path>`, the CLI shall read the archive from that path, or from stdin where `<path>` is `-`, and shall accept both plain-JSON and gzip-compressed archives, detecting gzip by its magic bytes.
+- `[EXP-10]` Import shall restore each archived session's notes into `<LOGBOOK_HOME>/notes/<session-id>.jsonl`, creating the log and its parent directory on first write.
+- `[EXP-11]` In the default `--merge` mode, import shall be additive: for each session it shall append only the archived notes not already present in the local log, identifying a note by its `captured_at` and `text`, and shall never mutate or reorder existing records.
+- `[EXP-12]` Where `--replace` is passed, import shall overwrite each archived session's local notes log with the archived notes. Passing both `--merge` and `--replace` shall exit non-zero.
+- `[EXP-13]` Where `--dry-run` is passed, import shall report what it would change — per session, notes added and already present — without writing to any log.
+- `[EXP-14]` Import shall not restore `device_id` or any config; the archive's `device_id` is provenance metadata only, since the device id is per-workstation state (`[CFG-7]`).
 
 ---
 

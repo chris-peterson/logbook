@@ -9,6 +9,8 @@ Single-file CLI. Subcommands:
     add-team <git-url> [--as <name>]              register a team retro repo
     device-id                                     print/persist per-workstation id
     config                                        print resolved config
+    export [--session <id> | --all] [--out-file <path>] [--compress]   emit notes as a JSON archive
+    import <path|-> [--merge | --replace] [--dry-run]                  restore notes from an archive
     retro publish <category> <slug> <dir> [--team <t>]
     retro template-path                           absolute path to retro template
     retro estimate-cost <i> <o> <cc> <cr> [--model claude-opus-4-7|claude-sonnet-4-6|...]
@@ -19,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import gzip
 import hashlib
 import json
 import os
@@ -65,6 +68,8 @@ _logbook() {
     'add-team:register a team retro git repo'
     'device-id:print or generate the per-workstation device id'
     'config:print resolved logbook config'
+    'export:emit session notes as a JSON archive'
+    'import:restore session notes from an archive'
     'retro:retro subcommands (publish, template-path, estimate-cost)'
     'install-cli:drop a logbook wrapper on PATH'
     'completions:install or print shell completions'
@@ -79,6 +84,19 @@ _logbook() {
   local -a note_subs=(
     'add:append a note to the active session log'
     'list:list the active session notes'
+  )
+
+  local -a export_opts=(
+    '--session:export a specific session by id'
+    '--all:export every session'
+    '--out-file:write to a file instead of stdout'
+    '--compress:gzip the output'
+  )
+
+  local -a import_opts=(
+    '--merge:additive append, skipping notes already present (default)'
+    '--replace:overwrite each session notes log'
+    '--dry-run:report what would change without writing'
   )
 
   if (( CURRENT == 2 )); then
@@ -96,6 +114,12 @@ _logbook() {
       if (( CURRENT == 3 )); then
         _describe 'note subcommand' note_subs
       fi
+      ;;
+    export)
+      _describe 'export option' export_opts
+      ;;
+    import)
+      _describe 'import option' import_opts
       ;;
     completions)
       (( CURRENT == 3 )) && compadd zsh
@@ -1159,6 +1183,176 @@ def cmd_note_list(args):
         print(f"  {i}. {prefix}{_truncate(n.get('text', ''), 100)}{suffix}")
 
 
+# ── export / import ──────────────────────────────────────────────────────
+#
+# Notes are ephemeral, session-scoped stash: captured mid-session, consumed at
+# retro. The durable log ([NOTE-16]) exists only so a session closed early or
+# abandoned doesn't lose its notes. Export/import move that per-session stash
+# around — hand a session off to another workstation, recover an abandoned
+# session's notes, or join logbook's notes with tack's and beacon's data.
+#
+# The join key is the Claude Code session id — the same id tack records in
+# `route.sessions[].id` and beacon carries in its wip payload's `session`. The
+# archive groups notes under `sessions[].session_id` so the three tools line up.
+# The envelope ({schemaVersion, exportedAt, generator, ...}) mirrors tack's
+# backup archive so the suite stays consistent; import sniffs the gzip magic so
+# it reads both the plain (console-default) and `--compress`ed forms.
+
+EXPORT_SCHEMA_VERSION = 1
+GZIP_MAGIC = b"\x1f\x8b"
+
+
+def _all_note_session_ids() -> list[str]:
+    if not NOTES_DIR.exists():
+        return []
+    return sorted(p.stem for p in NOTES_DIR.glob("*.jsonl"))
+
+
+def _build_archive(session_ids: list[str]) -> dict:
+    sessions = []
+    for sid in session_ids:
+        notes = _load_notes(sid)
+        if notes:
+            sessions.append({"session_id": sid, "notes": notes})
+    device_id = DEVICE_ID_PATH.read_text().strip() if DEVICE_ID_PATH.exists() else None
+    return {
+        "schemaVersion": EXPORT_SCHEMA_VERSION,
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "generator": f"logbook {_plugin_version()}",
+        "device_id": device_id,
+        "sessions": sessions,
+    }
+
+
+def cmd_export(args):
+    if args.all:
+        session_ids = _all_note_session_ids()
+    elif args.session:
+        session_ids = [args.session]
+    else:
+        resolved = _resolve_active_claude_session(args.workspace or ".")
+        if not resolved:
+            sys.exit("no Claude Code session detected — pass --session <id> or --all")
+        session_ids = [resolved[0]]
+
+    archive = _build_archive(session_ids)
+    payload = json.dumps(archive, indent=2)
+    data = gzip.compress(payload.encode("utf-8")) if args.compress else payload.encode("utf-8")
+    note_count = sum(len(s["notes"]) for s in archive["sessions"])
+
+    if args.out_file:
+        out = Path(args.out_file).expanduser()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(data)
+        suffix = ", gzip" if args.compress else ""
+        print(
+            f"exported {note_count} note(s) across {len(archive['sessions'])} session(s) "
+            f"→ {out} ({len(data) / 1024:.1f} KB, schema v{EXPORT_SCHEMA_VERSION}{suffix})"
+        )
+    elif args.compress:
+        sys.stdout.buffer.write(data)
+    else:
+        sys.stdout.write(payload + "\n")
+
+
+def _parse_archive(raw: bytes) -> dict:
+    if raw[:2] == GZIP_MAGIC:
+        try:
+            raw = gzip.decompress(raw)
+        except OSError as e:
+            sys.exit(f"import: not a valid gzip archive ({e})")
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        sys.exit(f"import: archive is not valid JSON ({e})")
+    if not isinstance(data.get("schemaVersion"), int):
+        sys.exit("import: archive missing schemaVersion")
+    if data["schemaVersion"] > EXPORT_SCHEMA_VERSION:
+        sys.exit(
+            f"import: archive schemaVersion {data['schemaVersion']} is newer than this "
+            f"logbook supports ({EXPORT_SCHEMA_VERSION}); upgrade logbook"
+        )
+    if not isinstance(data.get("sessions"), list):
+        sys.exit("import: archive missing sessions[]")
+    return data
+
+
+def _note_identity(note: dict) -> tuple:
+    """A note's cross-machine identity. Notes carry no id, but captured_at is an
+    ISO timestamp with microsecond precision — (captured_at, text) is stable and
+    unique enough to dedup a re-import without mutating the append-only log."""
+    return (note.get("captured_at"), note.get("text"))
+
+
+def _apply_import(archive: dict, mode: str, dry_run: bool) -> list:
+    results = []
+    for entry in archive["sessions"]:
+        sid = entry.get("session_id")
+        incoming = entry.get("notes", [])
+        if not sid or not incoming:
+            continue
+        path = _notes_path(sid)
+        existing = _load_notes(sid)
+
+        if mode == "replace":
+            added, skipped, write = len(incoming), 0, incoming
+        else:  # merge — additive, never mutates existing records
+            seen = {_note_identity(n) for n in existing}
+            new_notes = [n for n in incoming if _note_identity(n) not in seen]
+            added, skipped, write = len(new_notes), len(incoming) - len(new_notes), new_notes
+
+        if write and not dry_run:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            file_mode = "w" if mode == "replace" else "a"
+            with open(path, file_mode) as f:
+                for n in write:
+                    f.write(json.dumps(n) + "\n")
+
+        results.append({
+            "session_id": sid, "added": added, "skipped": skipped, "existed": bool(existing),
+        })
+    return results
+
+
+def cmd_import(args):
+    if args.merge and args.replace:
+        sys.exit("import: choose one of --merge or --replace")
+    mode = "replace" if args.replace else "merge"
+
+    if args.path == "-":
+        raw = sys.stdin.buffer.read()
+    else:
+        p = Path(args.path).expanduser()
+        if not p.is_file():
+            sys.exit(f"import: file not found: {p}")
+        raw = p.read_bytes()
+
+    archive = _parse_archive(raw)
+    results = _apply_import(archive, mode, args.dry_run)
+
+    tag = "[dry-run] " if args.dry_run else ""
+    total_added = sum(r["added"] for r in results)
+    print(
+        f"{tag}import ({mode}) from schema v{archive['schemaVersion']}, "
+        f"exported {archive.get('exportedAt', '?')}"
+    )
+    if mode == "replace":
+        new = sum(1 for r in results if not r["existed"])
+        over = sum(1 for r in results if r["existed"])
+        print(f"{tag}restored {len(results)} session(s) ({new} new, {over} overwritten), "
+              f"{total_added} note(s)")
+        for r in results:
+            print(f"  {r['session_id']}: {r['added']} note(s)"
+                  f"{' (overwrote existing)' if r['existed'] else ''}")
+    else:
+        touched = sum(1 for r in results if r["added"])
+        print(f"{tag}{total_added} note(s) added across {touched} session(s); "
+              f"{len(results)} session(s) in archive")
+        for r in results:
+            if r["added"]:
+                print(f"  {r['session_id']}: +{r['added']} added, {r['skipped']} already present")
+
+
 # ── install-cli ────────────────────────────────────────────────────────────
 
 def _resolve_source_script() -> Path:
@@ -1231,7 +1425,17 @@ def cmd_completions(args):
 
 # ── argparse ───────────────────────────────────────────────────────────────
 
-def main(argv=None):
+def _subparsers_action(parser):
+    """The parser's sole subcommand action, or None. Lets both the dispatcher
+    and the completion-drift test walk the registered subcommands from the one
+    source of truth (this parser) rather than a hand-maintained list."""
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return action
+    return None
+
+
+def build_parser():
     parser = argparse.ArgumentParser(prog="logbook", description=__doc__)
     parser.add_argument("--version", "-v", action="version",
                         version=f"logbook {_plugin_version()}")
@@ -1268,6 +1472,19 @@ def main(argv=None):
     sub.add_parser("device-id", help="print or generate the per-workstation device id")
     sub.add_parser("config", help="print resolved logbook config")
 
+    sp = sub.add_parser("export", help="emit session notes as a JSON archive (default: active session, stdout)")
+    sp.add_argument("--session", default=None, help="export this session's notes (default: active session)")
+    sp.add_argument("--all", action="store_true", help="export every session's notes")
+    sp.add_argument("--out-file", dest="out_file", default=None, help="write to file instead of stdout")
+    sp.add_argument("--compress", action="store_true", help="gzip the output")
+    sp.add_argument("--workspace", default=".", help="workspace path (default: cwd)")
+
+    sp = sub.add_parser("import", help="restore session notes from a logbook export archive")
+    sp.add_argument("path", help="archive path, or '-' for stdin")
+    sp.add_argument("--merge", action="store_true", help="additive: append notes not already present (default)")
+    sp.add_argument("--replace", action="store_true", help="overwrite each session's notes log")
+    sp.add_argument("--dry-run", dest="dry_run", action="store_true", help="report what would change without writing")
+
     sp = sub.add_parser("retro", help="retro subcommands")
     retro_sub = sp.add_subparsers(dest="retro_cmd")
 
@@ -1296,6 +1513,11 @@ def main(argv=None):
     sp.add_argument("--print", dest="print_only", action="store_true",
                     help="print the script to stdout instead of installing")
 
+    return parser
+
+
+def main(argv=None):
+    parser = build_parser()
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["help"]:
         argv = ["--help"]
@@ -1304,6 +1526,8 @@ def main(argv=None):
     if not args.cmd:
         parser.print_help()
         return
+
+    top = _subparsers_action(parser)
 
     if args.cmd == "session":
         cmd_session(args)
@@ -1315,13 +1539,17 @@ def main(argv=None):
         elif args.note_cmd == "list":
             cmd_note_list(args)
         else:
-            note_parser.print_help()
+            top.choices["note"].print_help()
     elif args.cmd == "add-team":
         cmd_add_team(args)
     elif args.cmd == "device-id":
         cmd_device_id(args)
     elif args.cmd == "config":
         cmd_config(args)
+    elif args.cmd == "export":
+        cmd_export(args)
+    elif args.cmd == "import":
+        cmd_import(args)
     elif args.cmd == "install-cli":
         cmd_install_cli(args)
     elif args.cmd == "completions":
@@ -1334,7 +1562,7 @@ def main(argv=None):
         elif args.retro_cmd == "estimate-cost":
             cmd_estimate_cost(args)
         else:
-            sp.print_help()
+            top.choices["retro"].print_help()
 
 
 if __name__ == "__main__":
