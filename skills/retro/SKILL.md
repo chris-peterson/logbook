@@ -126,6 +126,16 @@ If no team is configured (no `default_team` and no `teams` in `~/.logbook/config
 
 On rebase conflict or push failure, the CLI bails loudly and leaves the team clone in place for manual resolution.
 
-## Step 7: Confirm
+## Step 7: Harvest the session's notes
+
+This retro consumed the session's notes (the `notes[]` from `logbook session`), so mark them harvested with the `id` from that same output:
+
+```bash
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/logbook" note harvest <session-id>
+```
+
+Harvesting moves the session's notes log to `notes/harvested/` so its `deferred` notes stop surfacing as orphan reminders at the next session start. Run it whether or not a team was configured — the notes were consumed either way.
+
+## Step 8: Confirm
 
 Print the published path and the remote URL where the retro now lives.

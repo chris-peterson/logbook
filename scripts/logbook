@@ -6,6 +6,8 @@ Single-file CLI. Subcommands:
     session-id                                    print only the active session's id (fast)
     note add <text> [--disposition --kind --target]   append a note to the session's log
     note list [--session <id>] [--json]           list the session's notes
+    note harvest <session-id>                     mark a session's notes consumed by a retro
+    note orphans [--json]                         list sessions with deferred notes waiting on a retro
     add-team <git-url> [--as <name>]              register a team retro repo
     device-id                                     print/persist per-workstation id
     config                                        print resolved config
@@ -49,12 +51,17 @@ def _plugin_version() -> str:
 LOGBOOK_HOME = Path(os.environ.get("LOGBOOK_HOME") or (Path.home() / ".logbook"))
 REPOS_DIR = LOGBOOK_HOME / "repos"
 NOTES_DIR = LOGBOOK_HOME / "notes"
+HARVESTED_DIR = NOTES_DIR / "harvested"
 CONFIG_PATH = LOGBOOK_HOME / "config.yaml"
 DEVICE_ID_PATH = LOGBOOK_HOME / "device-id"
 TEMPLATE_PATH = PLUGIN_ROOT / "templates" / "retro.md"
 
 NOTE_DISPOSITIONS = ("this-session", "issue", "deferred")
 NOTE_KINDS = ("friction", "win")
+
+# A session is surfaced as an orphan only once its transcript has been idle
+# this long, so a session the user merely stepped away from is spared.
+ORPHAN_GRACE_SECONDS = 30 * 60
 
 DEVICE_ID_LENGTH = 12
 
@@ -84,6 +91,8 @@ _logbook() {
   local -a note_subs=(
     'add:append a note to the active session log'
     'list:list the active session notes'
+    'harvest:mark a session notes consumed by a retro'
+    'orphans:list sessions with deferred notes waiting on a retro'
   )
 
   local -a export_opts=(
@@ -1423,6 +1432,129 @@ def cmd_import(args):
                 print(f"  {r['session_id']}: +{r['added']} added, {r['skipped']} already present")
 
 
+# ── harvest + orphan backstop ────────────────────────────────────────────────
+#
+# A `deferred` note is left for `/logbook:retro` to consume ([NOTE-9]). That
+# promise holds only if a retro runs on the session; when one never does, the
+# note sits keyed to a dead session and nothing surfaces it. Harvesting moves a
+# consumed session's log into `notes/harvested/` so it stops surfacing, and the
+# orphan predicate finds sessions whose deferred notes are still waiting.
+
+
+def cmd_note_harvest(args):
+    src = _notes_path(args.session_id)
+    HARVESTED_DIR.mkdir(parents=True, exist_ok=True)
+    dest = HARVESTED_DIR / f"{args.session_id}.jsonl"
+    if not src.exists():
+        print(f"already harvested (or no notes): session {args.session_id}")
+        return
+    src.replace(dest)
+    print(f"harvested session {args.session_id} -> {dest}")
+
+
+def _pid_is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _live_session_ids() -> set:
+    """Session ids backed by a live `claude` process, read from the per-pid
+    session records under ~/.claude/sessions/<pid>.json."""
+    live = set()
+    sessions_dir = Path.home() / ".claude" / "sessions"
+    if not sessions_dir.exists():
+        return live
+    for record in sessions_dir.glob("*.json"):
+        try:
+            pid = int(record.stem)
+        except ValueError:
+            continue
+        if not _pid_is_alive(pid):
+            continue
+        try:
+            sid = json.loads(record.read_text()).get("sessionId")
+        except (json.JSONDecodeError, OSError):
+            continue
+        if sid:
+            live.add(sid)
+    return live
+
+
+def _orphan_sessions(current_session_id: str | None) -> list:
+    """Sessions whose deferred notes are still waiting on a retro.
+
+    A session qualifies only if all hold: it is not the current session; not
+    live; its transcript has been idle past the grace window; it is not
+    harvested; and it carries at least one `deferred` note.
+    """
+    if not NOTES_DIR.exists():
+        return []
+
+    live = _live_session_ids()
+    now = datetime.now(timezone.utc).timestamp()
+    orphans = []
+
+    for log in NOTES_DIR.glob("*.jsonl"):
+        session_id = log.stem
+        if session_id == current_session_id:
+            continue
+        if session_id in live:
+            continue
+
+        notes = _load_notes(session_id)
+        deferred = [n for n in notes if n.get("disposition") == "deferred"]
+        if not deferred:
+            continue
+
+        transcript = _transcript_for_session(session_id)
+        if not transcript:
+            continue
+        try:
+            idle_seconds = now - os.stat(transcript).st_mtime
+        except OSError:
+            continue
+        if idle_seconds < ORPHAN_GRACE_SECONDS:
+            continue
+
+        orphans.append({
+            "session_id": session_id,
+            "deferred_count": len(deferred),
+            "idle_seconds": int(idle_seconds),
+        })
+
+    orphans.sort(key=lambda o: o["idle_seconds"])
+    return orphans
+
+
+def cmd_note_orphans(args):
+    if args.current:
+        current_session_id = args.current
+    else:
+        resolved = _resolve_active_claude_session(args.workspace or ".")
+        current_session_id = resolved[0] if resolved else None
+    orphans = _orphan_sessions(current_session_id)
+
+    if args.json:
+        print(json.dumps(orphans, indent=2))
+        return
+
+    if not orphans:
+        print("no orphaned sessions with deferred notes")
+        return
+
+    print(f"{len(orphans)} session(s) with deferred notes waiting on a retro:")
+    for o in orphans:
+        mins = o["idle_seconds"] // 60
+        print(f"  {o['session_id']} — {o['deferred_count']} deferred note(s), idle {mins}m")
+
+
 # ── install-cli ────────────────────────────────────────────────────────────
 
 def _resolve_source_script() -> Path:
@@ -1534,6 +1666,15 @@ def build_parser():
     nl.add_argument("--json", dest="json", action="store_true", help="emit raw records as JSON")
     nl.add_argument("--workspace", default=".", help="workspace path (default: cwd)")
 
+    nh = note_sub.add_parser("harvest", help="mark a session's notes consumed by a retro")
+    nh.add_argument("session_id", help="session id whose notes log to harvest")
+
+    no = note_sub.add_parser("orphans", help="list sessions with deferred notes waiting on a retro")
+    no.add_argument("--json", dest="json", action="store_true", help="emit raw records as JSON")
+    no.add_argument("--current", default=None,
+                    help="session id to treat as the current session (default: resolve from workspace)")
+    no.add_argument("--workspace", default=".", help="workspace path (default: cwd)")
+
     sp = sub.add_parser("add-team", help="register a team retro git repo")
     sp.add_argument("git_url")
     sp.add_argument("--as", dest="team_name", default=None,
@@ -1608,6 +1749,10 @@ def main(argv=None):
             cmd_note_add(args)
         elif args.note_cmd == "list":
             cmd_note_list(args)
+        elif args.note_cmd == "harvest":
+            cmd_note_harvest(args)
+        elif args.note_cmd == "orphans":
+            cmd_note_orphans(args)
         else:
             top.choices["note"].print_help()
     elif args.cmd == "add-team":
