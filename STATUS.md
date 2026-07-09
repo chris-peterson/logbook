@@ -4,9 +4,9 @@ Tracking status of the requirements declared in [SPEC.md](SPEC.md). Updated
 after each `/spec-audit`, when implementation lands, or when the spec is
 revised.
 
-**Last audit:** 2026-06-24
+**Last audit:** 2026-07-08
 **Spec version:** v0.2
-**Coverage:** 108 / 108 normative requirements (all Covered); 0 deferred
+**Coverage:** 123 / 123 normative requirements (all Covered); 0 deferred
 
 ## Status by category
 
@@ -14,16 +14,33 @@ revised.
 |--------|------:|--------|-------|
 | CFG | 11 | All Covered | `scripts/logbook` config + state |
 | CLI | 12 | All Covered | `scripts/logbook` argv dispatch; CLI-2 enumeration includes `note`; CLI-12 (`note add`/`list` nested) |
-| SES | 15 | All Covered | `scripts/logbook` session detection; SES-5a/5b and SES-11a/11b each count as one; SES-13 (`notes[]` in session JSON) |
+| SES | 16 | All Covered | `scripts/logbook` session detection; SES-5a/5b and SES-11a/11b each count as one; SES-13 (`notes[]` in session JSON); SES-14 (sub-agent token roll-up + `tokens_breakdown`) |
 | RETRO | 8 | All Covered | `templates/retro.md`; RETRO-7/8 (`retro` reads `notes[]`, surfaces the count) — `skills/retro/SKILL.md` |
 | PUB | 11 | All Covered | `scripts/logbook` retro publish path |
 | PRIV | 5 | All Covered | Core contract; PRIV-5 (notes log is local-only, never published) |
 | INST | 12 | All Covered | `commands/logbook.md`, `skills/`, `hooks/` |
 | COMP | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
 | COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json` |
+| EXP | 14 | All Covered | `scripts/logbook` `export`/`import` + archive format (shipped in 0.12.0) |
 | NOTE | 21 | All Covered | `skills/note/SKILL.md` recorder model: dispositions This Session/File an issue/Defer to retro; durable notes log + `logbook note add`/`list` (`scripts/logbook`); `start`/`end` hand-edit bracket |
 
 ## Audit history
+
+### 2026-07-08 — sub-agent token roll-up + EXP backfill
+
+Added `[SES-14]`: `logbook session` now aggregates token usage across the parent
+transcript and every sub-agent transcript (direct delegates and workflow-spawned
+agents), and exposes a `tokens_breakdown` split. Parent-only reporting had
+undercounted multi-agent sessions by every LLM call their sub-agents made.
+
+- **Spec (SPEC.md)** — `[SES-14]` (roll-up + `tokens_breakdown` shape).
+- **Implementation (`scripts/logbook`)** — `_sum_subagent_tokens` walks the
+  `<session-id>/subagents/**/agent-*.jsonl` sidecar tree; `_print_claude_session`
+  folds it into `tokens` and emits `tokens_breakdown` when sub-agents are present.
+- **Backfill** — reconciled the coverage table with the `EXP-1..14` requirements
+  shipped in 0.12.0, whose export/import surface landed without a STATUS update.
+- **Coverage delta** — 108 → **123** (+1 SES-14, +14 EXP backfill). SES 15 → 16,
+  new EXP row (14).
 
 ### 2026-06-24 — recorder model: notes as a first-class noun (spec v0.2)
 

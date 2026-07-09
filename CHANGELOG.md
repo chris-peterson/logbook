@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **`logbook session` now rolls up sub-agent token usage.** Previously the `tokens` block (and any downstream cost estimate) reflected only the parent transcript, silently undercounting multi-agent sessions by every LLM call their orchestrated sub-agents made — often the majority of the bill. The CLI now also reads every `<session-id>/subagents/**/agent-*.jsonl` sidecar transcript (direct delegates and workflow-spawned agents both), sums them into `tokens`, and surfaces a sibling `tokens_breakdown` of `{parent, subagents, subagent_count}` for transparency. Sessions without sub-agents are unaffected. ([SES-14]) — surfaced by ai-sdlc's `bridge-ai-ralph-burndown` retro, where parent-only reporting understated a 57-sub-agent campaign by ~65% (~$131 reported vs ~$377 actual).
+
 ## 0.12.0
 
 ### Features
