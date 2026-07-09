@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.13.0
+
+## What's Changed
+* feat(session): aggregate sub-agent token usage by @chris-peterson in https://github.com/chris-peterson/logbook/pull/10
+* feat(note): surface and harvest orphaned deferred notes by @chris-peterson in https://github.com/chris-peterson/logbook/pull/9
+
+
+**Full Changelog**: https://github.com/chris-peterson/logbook/compare/v0.12.0...v0.13.0
+
 ## Unreleased
 
 ### Added
