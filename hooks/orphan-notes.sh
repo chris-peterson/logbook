@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DOCUMENTATION: Surface deferred notes still waiting on a retro.
 # SessionEnd / SessionStart hook: surface deferred notes still waiting on a retro.
 #
 # A note captured with the `deferred` disposition is left for `/logbook:retro`

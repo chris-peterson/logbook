@@ -28,6 +28,19 @@ suite:
     - ["logbook", "Same notes + retros from any terminal"]
   # Skill-anchored previews of the two flagship skills, shown live on the docs
   # site; the session: below is the at-a-glance flow the hub also reads.
+  # >>> shipyard:describe — generated from source by `shipyard gen-describe`; do not edit >>>
+  describe:
+    skills:
+      note: Record a mid-session observation — friction or a win — as retro material, then act on it.
+      retro: Generate a retrospective document from the current AI coding session and publish it to the team retro repo.
+      session-id: Print only the active session's id — fast path for when you just need the id.
+    hooks:
+      cli-freshness: SessionStart — Detect CLI wrapper drift after a plugin update.
+      hooks: 'Hook wiring: SessionStart→cli-freshness, orphan-notes; SessionEnd→orphan-notes.'
+      orphan-notes: SessionStart / SessionEnd — Surface deferred notes still waiting on a retro.
+    commands:
+      logbook: Log important learnings from AI coding sessions
+  # <<< shipyard:describe <<<
   examples:
     - label: "/logbook:note"
       ac: "--build"
