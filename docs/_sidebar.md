@@ -4,4 +4,4 @@
   - [note](/skills/note)
   - [session-id](/skills/session-id)
 - [CLI reference](/cli)
-- [Requirements](/SPEC.md)
+- [SPEC](/spec)
