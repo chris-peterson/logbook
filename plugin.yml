@@ -58,3 +58,7 @@ suite:
     - { t: claude, text: "Third tenant-isolation bug this week." }
     - { t: thought, text: "this convention isn't written down anywhere" }
     - { t: cmd, cmd: "/logbook:note", out: "Documents the tenant-prefix rule in CLAUDE.md and sweeps the helpers that miss it — now, this session." }
+
+docs:
+  code_languages: [bash, yaml, python, json]
+  mermaid: true
