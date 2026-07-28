@@ -15,19 +15,10 @@
 
 ## 0.13.0
 
-## What's Changed
-* feat(session): aggregate sub-agent token usage by @chris-peterson in https://github.com/chris-peterson/logbook/pull/10
-* feat(note): surface and harvest orphaned deferred notes by @chris-peterson in https://github.com/chris-peterson/logbook/pull/9
-
-
-**Full Changelog**: https://github.com/chris-peterson/logbook/compare/v0.12.0...v0.13.0
-
-## Unreleased
-
-### Added
+### Features
 - **Deferred notes no longer get stranded when a session ends before a retro.** A note left for `/logbook:retro` to consume was only surfaced if a retro actually ran; if the session ended first, it sat keyed to a dead session forever. `logbook note harvest <session-id>` now moves a session's notes log to `notes/harvested/` so its notes stop surfacing (idempotent), and `logbook note orphans` lists sessions whose `deferred` notes are still waiting on a retro — skipping the current session, live sessions, sessions idle less than a 30-minute grace window, and already-harvested ones. A `SessionStart` hook injects surviving orphans as context, a `SessionEnd` hook reminds you when the closing session still has un-harvested deferred notes, and the retro skill harvests at publish time. ([NOTE-22]–[NOTE-25], [INST-13]/[INST-14])
 
-### Fixed
+### Fixes
 - **`logbook session` now rolls up sub-agent token usage.** Previously the `tokens` block (and any downstream cost estimate) reflected only the parent transcript, silently undercounting multi-agent sessions by every LLM call their orchestrated sub-agents made — often the majority of the bill. The CLI now also reads every `<session-id>/subagents/**/agent-*.jsonl` sidecar transcript (direct delegates and workflow-spawned agents both), sums them into `tokens`, and surfaces a sibling `tokens_breakdown` of `{parent, subagents, subagent_count}` for transparency. Sessions without sub-agents are unaffected. ([SES-14]) — surfaced by ai-sdlc's `bridge-ai-ralph-burndown` retro, where parent-only reporting understated a 57-sub-agent campaign by ~65% (~$131 reported vs ~$377 actual).
 
 ## 0.12.0
