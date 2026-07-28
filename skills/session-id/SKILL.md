@@ -1,7 +1,6 @@
 ---
 name: session-id
 description: Print only the active session's id — fast path for when you just need the id.
-disable-model-invocation: true
 ---
 
 # `/logbook:session-id`
