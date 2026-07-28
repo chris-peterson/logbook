@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.0
+
+### Features
+- Claude can now invoke `/logbook` and `/logbook:session-id` on its own, not just when you type them. Both carried `disable-model-invocation: true`, which held back these lightweight passthroughs from being used mid-conversation.
+
+### Other
+- The docs site's spec sits at a stable `/spec` route (sidebar entry "SPEC"), and the docsify page is generated from `plugin.yml` instead of a hand-maintained `docs/index.html` — so the shared site template and its sidebar-depth fix apply without a copied file drifting. Links to `#/SPEC.md` should point at `#/spec`.
+- `plugin.json` now carries `homepage`, so the docs site surfaces from the plugin manifest and the marketplace listing.
+- Build tooling and CI moved to [shipyard](https://github.com/chris-peterson/shipyard), the shared plugin build tool. The four local build scripts (plugin.json generation, docs-data generation, changelog prepend, skill-doc copy) and the hand-written release/docs-deploy workflows are replaced by a `scripts/shipyard` wrapper and thin callers of shipyard's reusable workflows, all pinned to `@v1`. Generated-artifact drift is previewed by a `Preview` CI job rather than blocked by a local pre-commit hook.
+- Hooks are declared in `hooks/hooks.yml`, from which `hooks/hooks.json` is generated, and the catalog's per-skill and per-hook descriptions are read from source rather than hand-written.
+- The docs-data file the shared session player fetches is now `plugin-docs.json` (was `suite.json`, which read as a Claude Code format).
+- `just` recipes follow shipyard: `generate`, `check` (`generate --dry-run`), `docs`, `plugin-json`, `describe`.
+
 ## 0.13.0
 
 ## What's Changed
