@@ -15,7 +15,7 @@ A note pairs with `/logbook:retro` — retro reflects after the voyage, `note` c
 | Disposition | When | What happens |
 |---|---|---|
 | **This Session** | The fix is reachable from here, small, and you want it now (you're blocked or want to leverage it) | apply the change + sweep comparable sites |
-| **File an issue** | Worth tracking, but not now — you don't want to forget | emit a structured note + a pre-filled issue URL; nothing modified |
+| **File an issue** | Worth tracking, but not now — you don't want to forget | file it through anchor, or emit a structured note + a pre-filled issue URL; nothing modified |
 | **Defer to retro** | You recognize it but don't know how to handle it yet, or it's minor | nothing beyond the record; the retro picks it up |
 
 Actuation that lives outside logbook's domain — spawning or forking a session into another project — is **not** logbook's job. When the work belongs in another repo and you want it now, file an issue and pull it into a fresh session there (e.g. `/recipe`), so that project's rules and hooks apply; or just open a session there. logbook records the note; the orchestration layer does the driving.
@@ -38,7 +38,10 @@ flowchart TD
     Mode -->|This Session| Apply["Apply fix in current session"]
     Apply --> Sweep["Sweep comparable sites"]
     Sweep --> Resume([Resume prior work])
-    Mode -->|File an issue| Emit["Emit note body + clipboard + issue URL"]
+    Mode -->|File an issue| Anchor{anchor available?}
+    Anchor -->|Yes| Delegate["/anchor:issue files it"]
+    Anchor -->|No| Emit["Emit note body + clipboard + issue URL"]
+    Delegate --> Resume
     Emit --> Resume
     Mode -->|Defer to retro| Done["Nothing more — retro consumes it"]
     Done --> Resume
@@ -93,7 +96,7 @@ Present the three dispositions as a selectable list with `AskUserQuestion`. Put 
 - **question:** `Target: <path or "—">  (<kind>). What should happen with this note?`
 - **options** (label → description):
   - `This Session` → apply the fix and sweep comparable sites right here
-  - `File an issue` → emit a structured note + pre-filled issue URL to file for later
+  - `File an issue` → file it now through anchor, or emit a structured note + pre-filled issue URL
   - `Defer to retro` → just capture it; the end-of-session retro picks it up
 
 The user can always pick "Other" to redirect. Reorder so the recommended option leads, but keep all three present.
@@ -133,9 +136,13 @@ Then resume the work the user was doing when the note was raised.
 
 ### 4b. Disposition: `File an issue`
 
-Emit a structured note the user can review, attach, or file as an issue — nothing in the target repo is modified and no session is spawned. In one pass the skill writes the note to a tempfile, copies the body to the clipboard, and (when the cwd is a git repo on a known forge) builds a pre-filled "new issue" URL. Lead the summary with the action, and render any issue URL as a markdown hyperlink, never the raw query string.
+There are two paths, chosen by whether anchor is installed alongside logbook. Neither one modifies the target repo or spawns a session.
 
-Read **[`references/file-an-issue.md`](references/file-an-issue.md)** before acting — it carries the full mechanics: title/body shape, the `mktemp -u` tempfile rationale, the clipboard fallback chain, forge URL templates and encoding rules, and the exact summary formats.
+**When `/anchor:issue` is in your available-skills listing, delegate to it** and stop here — pass the observation, the resolved target, and any "why this matters" the user gave as the issue intent. anchor files directly through `gh`/`glab` in the why-first shape (Context → Proposed approach → Acceptance criteria) the rest of the suite's issues use, so the note lands as a tracked issue rather than a URL waiting to be clicked. Read the listing rather than probing the filesystem for anchor: the listing reflects what you can actually invoke, where a plugin present on disk may still be disabled.
+
+**Without anchor**, emit the artifacts yourself. In one pass the skill writes the note to a tempfile, copies the body to the clipboard, and (when the cwd is a git repo on a known forge) builds a pre-filled "new issue" URL. Lead the summary with the action, and render any issue URL as a markdown hyperlink, never the raw query string.
+
+Read **[`references/file-an-issue.md`](references/file-an-issue.md)** before acting on that path — it carries the full mechanics: title/body shape, the `mktemp -u` tempfile rationale, the clipboard fallback chain, forge URL templates and encoding rules, and the exact summary formats.
 
 ### 4c. Disposition: `Defer to retro`
 

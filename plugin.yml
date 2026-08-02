@@ -19,6 +19,10 @@ marketplace:
 suite:
   cli: true
   group: record
+  dependencies:
+    - name: anchor
+      required: false
+      reason: files a note's issue in the suite's why-first shape
   gloss: The ship's log — what the last crew figured out.
   pitch: "Solved something the hard way? It writes up what you learned and shares it with the team, so no one re-solves it."
   what: "Turns a session into a retrospective committed to a team-owned repo. Your chat transcript stays on your machine — only the write-up is shared, so the next person inherits the lesson, not just the code."
