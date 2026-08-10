@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Fixes
-- **`retro estimate-cost` knows the Claude 5 generation, and defaults to it.** The vendored price table gained `claude-opus-5`, `claude-sonnet-5`, `claude-opus-4-8`, and `claude-fable-5`; the default model moves from `claude-opus-4-7` to `claude-opus-5`. No existing model's rates changed, so a figure you estimated before still stands. ([COST-3], [COST-4])
-- **A model id with a context-window suffix resolves instead of erroring.** `--model claude-opus-5[1m]` — the exact id Claude Code reports for a long-context session — exited `unknown model`, because the price table keys on the base id. The suffix is now dropped, and both variants bill at the same per-token rates. ([COST-6a])
-
 ## 0.15.0
 
 ### Features
