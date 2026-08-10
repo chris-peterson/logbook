@@ -19,7 +19,7 @@ durable notes log, and its harvested archive are per-workstation state under
 
 This is the one invariant worth stopping over. A change that widens what
 `retro publish` reads, or that quotes session content into a generated artifact
-rather than into prose the author wrote, breaks it — check the PRIV requirements
+rather than into prose the author wrote, breaks it — check the PRIVACY requirements
 before adding either.
 
 ## Commands

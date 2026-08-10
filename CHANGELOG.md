@@ -3,7 +3,11 @@
 ## Unreleased
 
 ### Added
+- **The retro template's Timeline column names its unit: `HH:MM` elapsed from session start.** The example rows showed values like `0:00` and `3:30` without saying what scale they were on, and a generator computing elapsed time naturally prints a duration as `MM:SS`. Under an hour the two are indistinguishable, so a wrong choice survives every short session and only surfaces on a multi-hour one, where `MM:SS` renders `311:14`. ([RETRO-5a])
 - **A note filed as an issue now goes through anchor when you have it installed.** `File an issue` used to hand you a pre-filled "new issue" URL to click through, which produced an unstructured issue and left the filing half-done until you got to the browser. With anchor present, `/logbook:note` delegates to `/anchor:issue`, which files it directly via `gh`/`glab` in the why-first shape (Context → Proposed approach → Acceptance criteria) the rest of the suite's issues use. Without anchor the pre-filled URL path is unchanged — the dependency is optional. ([NOTE-8a])
+
+### Other
+- Requirement category prefixes are spelled out: `CFG` → `CONFIG`, `SES` → `SESSION`, `PUB` → `PUBLISH`, `PRIV` → `PRIVACY`, `INST` → `INSTALL`, `COMP` → `COMPLETION`, `EXP` → `EXPORT`. `CLI`, `RETRO`, `COST`, and `NOTE` are unchanged. Every reference in the spec, the coverage ledger, and this changelog moves with them, so an ID cited anywhere still resolves.
 
 ## 0.14.0
 
@@ -21,10 +25,10 @@
 ## 0.13.0
 
 ### Features
-- **Deferred notes no longer get stranded when a session ends before a retro.** A note left for `/logbook:retro` to consume was only surfaced if a retro actually ran; if the session ended first, it sat keyed to a dead session forever. `logbook note harvest <session-id>` now moves a session's notes log to `notes/harvested/` so its notes stop surfacing (idempotent), and `logbook note orphans` lists sessions whose `deferred` notes are still waiting on a retro — skipping the current session, live sessions, sessions idle less than a 30-minute grace window, and already-harvested ones. A `SessionStart` hook injects surviving orphans as context, a `SessionEnd` hook reminds you when the closing session still has un-harvested deferred notes, and the retro skill harvests at publish time. ([NOTE-22]–[NOTE-25], [INST-13]/[INST-14])
+- **Deferred notes no longer get stranded when a session ends before a retro.** A note left for `/logbook:retro` to consume was only surfaced if a retro actually ran; if the session ended first, it sat keyed to a dead session forever. `logbook note harvest <session-id>` now moves a session's notes log to `notes/harvested/` so its notes stop surfacing (idempotent), and `logbook note orphans` lists sessions whose `deferred` notes are still waiting on a retro — skipping the current session, live sessions, sessions idle less than a 30-minute grace window, and already-harvested ones. A `SessionStart` hook injects surviving orphans as context, a `SessionEnd` hook reminds you when the closing session still has un-harvested deferred notes, and the retro skill harvests at publish time. ([NOTE-22]–[NOTE-25], [INSTALL-13]/[INSTALL-14])
 
 ### Fixes
-- **`logbook session` now rolls up sub-agent token usage.** Previously the `tokens` block (and any downstream cost estimate) reflected only the parent transcript, silently undercounting multi-agent sessions by every LLM call their orchestrated sub-agents made — often the majority of the bill. The CLI now also reads every `<session-id>/subagents/**/agent-*.jsonl` sidecar transcript (direct delegates and workflow-spawned agents both), sums them into `tokens`, and surfaces a sibling `tokens_breakdown` of `{parent, subagents, subagent_count}` for transparency. Sessions without sub-agents are unaffected. ([SES-14]) — surfaced by ai-sdlc's `bridge-ai-ralph-burndown` retro, where parent-only reporting understated a 57-sub-agent campaign by ~65% (~$131 reported vs ~$377 actual).
+- **`logbook session` now rolls up sub-agent token usage.** Previously the `tokens` block (and any downstream cost estimate) reflected only the parent transcript, silently undercounting multi-agent sessions by every LLM call their orchestrated sub-agents made — often the majority of the bill. The CLI now also reads every `<session-id>/subagents/**/agent-*.jsonl` sidecar transcript (direct delegates and workflow-spawned agents both), sums them into `tokens`, and surfaces a sibling `tokens_breakdown` of `{parent, subagents, subagent_count}` for transparency. Sessions without sub-agents are unaffected. ([SESSION-14]) — surfaced by ai-sdlc's `bridge-ai-ralph-burndown` retro, where parent-only reporting understated a 57-sub-agent campaign by ~65% (~$131 reported vs ~$377 actual).
 
 ## 0.12.0
 
@@ -35,7 +39,7 @@
 
 ### Other
 - A CI test guards the zsh completion against drifting from the CLI's actual commands and flags, so a newly added subcommand can't silently ship without completion. The existing `plugin.json`-in-sync check now also runs in CI (previously local-only).
-- SPEC: new `EXP` section specifying the export/import surface and archive format.
+- SPEC: new `EXPORT` section specifying the export/import surface and archive format.
 
 ## 0.11.3
 
@@ -66,7 +70,7 @@
 ## 0.10.0
 
 ### Features
-- **Session notes are now a first-class record.** `/logbook:note` captures every mid-session observation — friction *or* "this worked well" — into a durable per-session log (`~/.logbook/notes/<id>.jsonl`). `logbook session` surfaces them as `notes[]`, and `/logbook:retro` reads them so it synthesizes from pre-gathered material instead of reconstructing the session cold. The note count is surfaced as a retro-worthiness signal. ([NOTE-16]–[NOTE-21], [SES-13], [RETRO-7]/[RETRO-8])
+- **Session notes are now a first-class record.** `/logbook:note` captures every mid-session observation — friction *or* "this worked well" — into a durable per-session log (`~/.logbook/notes/<id>.jsonl`). `logbook session` surfaces them as `notes[]`, and `/logbook:retro` reads them so it synthesizes from pre-gathered material instead of reconstructing the session cold. The note count is surfaced as a retro-worthiness signal. ([NOTE-16]–[NOTE-21], [SESSION-13], [RETRO-7]/[RETRO-8])
 - **`logbook note add` / `logbook note list`** record and review a session's notes from any terminal. ([CLI-12])
 
 ### Changed
@@ -128,7 +132,7 @@
 ## 0.3.1
 
 ### Fixes
-- `logbook session` and `logbook session-id` no longer return a stale transcript when the shell's cwd at invocation time differs from the session's origin cwd (e.g., after a Bash `cd` into another repo). Resolution now prefers the `CLAUDE_CODE_SESSION_ID` env var, then walks the process tree to the nearest `claude` ancestor and reads `~/.claude/sessions/<pid>.json`, and only falls back to cwd-derived `.jsonl` mtime sort as a last resort. The previous code checked `CLAUDE_SESSION_ID` (wrong env var name), so it always fell through to the cwd heuristic. ([SES-4], [SES-5], [SES-11])
+- `logbook session` and `logbook session-id` no longer return a stale transcript when the shell's cwd at invocation time differs from the session's origin cwd (e.g., after a Bash `cd` into another repo). Resolution now prefers the `CLAUDE_CODE_SESSION_ID` env var, then walks the process tree to the nearest `claude` ancestor and reads `~/.claude/sessions/<pid>.json`, and only falls back to cwd-derived `.jsonl` mtime sort as a last resort. The previous code checked `CLAUDE_SESSION_ID` (wrong env var name), so it always fell through to the cwd heuristic. ([SESSION-4], [SESSION-5], [SESSION-11])
 
 ## 0.3.0
 

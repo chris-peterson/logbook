@@ -118,13 +118,13 @@ initial_context: [token count — e.g., 23669]
 ### Timeline
 [5-10 key events showing how the session progressed. Reconstruct from transcript — focus on turning points, not every message. Include cumulative token count at each event.]
 
-| Time | Cumulative Tokens | Event |
-|------|------------------:|-------|
-| 0:00 | 0 | [Session start — initial prompt / goal] |
-| 0:15 | ~[N]K | [First milestone] |
-| 0:45 | ~[N]K | [First error / course correction] |
+| Time (HH:MM) | Cumulative Tokens | Event |
+|--------------|------------------:|-------|
+| 00:00 | 0 | [Session start — initial prompt / goal] |
+| 00:15 | ~[N]K | [First milestone] |
+| 00:45 | ~[N]K | [First error / course correction] |
 | ... | ... | ... |
-| 3:30 | ~[N]K | [Session end — final state] |
+| 03:30 | ~[N]K | [Session end — final state] |
 
 ---
 
@@ -170,7 +170,8 @@ initial_context: [token count — e.g., 23669]
 - **Synthesized Prompt is mandatory**: Even a 3-line prompt is useful. This is the most reusable artifact of the retro.
 - **Timeline uses session metrics**: Don't guess at duration when there's real data.
 - **Timeline includes cumulative tokens**: Each timeline row should show cumulative token count, extracted from the transcript.
-- **Timeline shows the narrative arc**: 5-10 key events — start, milestones, errors/corrections, turning points, end. Use relative timestamps (0:00, 0:15) when exact times aren't available.
+- **Timeline shows the narrative arc**: 5-10 key events — start, milestones, errors/corrections, turning points, end.
+- **Timeline times are elapsed wall-clock in `HH:MM`**: measured from session start (`00:00`, `00:15`, `03:30`), not clock times, and not `MM:SS` — a 5.2-hour session reads `05:12`, where `MM:SS` would render the same session as `311:14`.
 - **Token Usage by Task is task-oriented**: Group by logical task (diagnosis, implementation, code review), not by tool type. The question is "what was I doing?" not "what tools were used?"
 - **Responsiveness is tracked**: Compute turn latency, slowest tool calls, and idle gaps directly from transcript timestamps. Name the specific tools, agents, or gaps responsible for wait time.
 - **Cost details are collapsible**: Total cost in the metadata header; detailed breakdown in a `<details>` block.

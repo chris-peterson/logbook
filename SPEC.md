@@ -9,17 +9,17 @@ Requirements use [EARS syntax](https://alistairmavin.com/ears) with formal requi
 
 | Prefix | Concern |
 |---|---|
-| `CFG`  | Configuration and per-workstation state |
+| `CONFIG`  | Configuration and per-workstation state |
 | `CLI`  | CLI surface and subcommand structure |
 | `RETRO`| Retro generation, template, frontmatter |
-| `PUB`  | Publishing to a team retro repo |
-| `PRIV` | Privacy — what is and is not published |
-| `INST` | Install and onboarding |
-| `COMP` | Shell completions |
+| `PUBLISH`  | Publishing to a team retro repo |
+| `PRIVACY` | Privacy — what is and is not published |
+| `INSTALL` | Install and onboarding |
+| `COMPLETION` | Shell completions |
 | `COST` | Cost estimation |
-| `SES`  | Session info detection |
+| `SESSION`  | Session info detection |
 | `NOTE` | Mid-session notes — capture, durable log, disposition |
-| `EXP`  | Export and import of the notes stash |
+| `EXPORT`  | Export and import of the notes stash |
 
 ---
 
@@ -29,19 +29,19 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 
 ---
 
-## CFG — Configuration and State
+## CONFIG — Configuration and State
 
-- `[CFG-1]` The system shall persist all per-workstation state under `~/.logbook/` by default.
-- `[CFG-2]` Where the environment variable `LOGBOOK_HOME` is set, the system shall use its value as the state root in place of `~/.logbook/`.
-- `[CFG-3]` The system shall persist team registrations in a YAML file at `<LOGBOOK_HOME>/config.yaml`.
-- `[CFG-4]` The configuration file shall contain a top-level `default_team` key naming the default team for retro publishing.
-- `[CFG-5]` The configuration file shall contain a top-level `teams` mapping where each entry maps a team name to an object with at least a `remote` field (git URL).
-- `[CFG-6]` The system shall persist a per-workstation device id at `<LOGBOOK_HOME>/device-id` as a single line of plain text.
-- `[CFG-7]` When the device id file is missing, the system shall generate a 12-character lowercase hex identifier derived from the workstation's hostname and primary MAC address, and persist it to the device id file.
-- `[CFG-8]` Where the device id file is deleted, the system shall regenerate the id on the next request (rotation by deletion).
-- `[CFG-9]` The system shall persist team retro repo clones under `<LOGBOOK_HOME>/repos/<team-name>/`.
-- `[CFG-10]` If PyYAML is not importable, then the system shall exit with a non-zero status and an actionable message before attempting any config read or write.
-- `[CFG-11]` When invoked as `logbook config`, the CLI shall print a JSON object containing the resolved values of `logbook_home`, `config_path`, `device_id_path`, `template_path`, and the parsed contents of `<LOGBOOK_HOME>/config.yaml`.
+- `[CONFIG-1]` The system shall persist all per-workstation state under `~/.logbook/` by default.
+- `[CONFIG-2]` Where the environment variable `LOGBOOK_HOME` is set, the system shall use its value as the state root in place of `~/.logbook/`.
+- `[CONFIG-3]` The system shall persist team registrations in a YAML file at `<LOGBOOK_HOME>/config.yaml`.
+- `[CONFIG-4]` The configuration file shall contain a top-level `default_team` key naming the default team for retro publishing.
+- `[CONFIG-5]` The configuration file shall contain a top-level `teams` mapping where each entry maps a team name to an object with at least a `remote` field (git URL).
+- `[CONFIG-6]` The system shall persist a per-workstation device id at `<LOGBOOK_HOME>/device-id` as a single line of plain text.
+- `[CONFIG-7]` When the device id file is missing, the system shall generate a 12-character lowercase hex identifier derived from the workstation's hostname and primary MAC address, and persist it to the device id file.
+- `[CONFIG-8]` Where the device id file is deleted, the system shall regenerate the id on the next request (rotation by deletion).
+- `[CONFIG-9]` The system shall persist team retro repo clones under `<LOGBOOK_HOME>/repos/<team-name>/`.
+- `[CONFIG-10]` If PyYAML is not importable, then the system shall exit with a non-zero status and an actionable message before attempting any config read or write.
+- `[CONFIG-11]` When invoked as `logbook config`, the CLI shall print a JSON object containing the resolved values of `logbook_home`, `config_path`, `device_id_path`, `template_path`, and the parsed contents of `<LOGBOOK_HOME>/config.yaml`.
 
 ---
 
@@ -62,24 +62,24 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 
 ---
 
-## SES — Session Info
+## SESSION — Session Info
 
-- `[SES-1]` When invoked as `logbook session`, the CLI shall emit a JSON object on stdout describing the active AI coding session for the current workspace.
-- `[SES-2]` The session JSON shall contain at minimum the keys `id`, `name`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`, where `name` is the cleaned first user prompt.
-- `[SES-3]` The session JSON shall contain a `slug` field, the slugified form of `name` (the session's first user prompt).
-- `[SES-4]` Where `CLAUDE_CODE_SESSION_ID` is set, the CLI shall report the Claude Code session matching that id.
-- `[SES-5a]` While `CLAUDE_CODE_SESSION_ID` is unset, the CLI shall walk its own process ancestry to the nearest `claude` process and, if `~/.claude/sessions/<pid>.json` exists for that PID, report the session named in that record.
-- `[SES-5b]` While `CLAUDE_CODE_SESSION_ID` is unset and no `claude` ancestor or session record is found, the CLI shall fall back to the most-recently-modified `.jsonl` in the cwd-derived project directory under `~/.claude/projects/`.
-- `[SES-6]` While no Claude Code session is detected, when a VS Code workspace storage entry contains GitHub Copilot chat sessions for the current workspace, the CLI shall report the latest Copilot session.
-- `[SES-7]` While no Claude Code or Copilot session is detected, when a Cursor workspace storage entry exists for the current workspace, the CLI shall report the focused Cursor composer session.
-- `[SES-8]` For Claude Code sessions, the JSON output shall include a `detailed` block with at least `tool_usage`, `files_touched`, `timeline`, `user_messages`, `overlapping_sessions`, `concurrency`, and `initial_context_tokens`. The `concurrency` block shall report `overlapping` (count of overlapping sessions), `max_parallel` (peak simultaneous sessions over the current session's window, including the current session, computed by a sweep line where touching boundaries do not count as concurrent), and `wall_hours` (the current session's wall-clock span). The `detailed` block may additionally include `compaction` (event timestamps and line numbers) and `git_activity` (commit timeline across detected repos for the last 7 days) when the relevant data is present.
-- `[SES-9]` If no session can be detected, then the CLI shall exit with a non-zero status and an actionable error.
-- `[SES-10]` When invoked as `logbook session-id`, the CLI shall write only the active session's identifier followed by a newline to stdout, without parsing the session transcript or computing the `detailed` block.
-- `[SES-11a]` The `session-id` subcommand shall use the same detection precedence as `session`: `CLAUDE_CODE_SESSION_ID` env, then `claude`-ancestor PID lookup via `~/.claude/sessions/<pid>.json`, then the most-recently-modified Claude Code session for the current workspace.
-- `[SES-11b]` If no Claude Code session is detected, then `session-id` shall exit with a non-zero status and an actionable error.
-- `[SES-12]` Where the platform is not macOS, the behavior of Copilot and Cursor session detection ([SES-6], [SES-7]) is undefined — the implementation reads from paths under `~/Library/Application Support/`.
-- `[SES-13]` The `session` JSON shall include a top-level `notes` array holding the records from the active session's durable notes log ([NOTE-16]), in capture order, so a retro (or a spawned retro worker) receives them as pre-gathered material. Where the session has no notes log, `notes` shall be an empty array.
-- `[SES-14]` For Claude Code sessions, the `tokens` block shall aggregate LLM usage across the **parent transcript and every sub-agent transcript** the session spawned — including workflow-spawned agents — so cost estimation reflects the entire orchestration tree, not just the orchestrator. Sub-agent transcripts are located in the sidecar directory named for the session id alongside the parent transcript (`<projects>/<encoded-cwd>/<session-id>/subagents/**/agent-*.jsonl`). Where at least one sub-agent transcript is present, the output shall additionally include a `tokens_breakdown` object with `parent`, `subagents`, and `subagent_count` so consumers can render a parent-vs-sub-agent split without re-parsing transcripts.
+- `[SESSION-1]` When invoked as `logbook session`, the CLI shall emit a JSON object on stdout describing the active AI coding session for the current workspace.
+- `[SESSION-2]` The session JSON shall contain at minimum the keys `id`, `name`, `tool`, `model`, `start`, `end`, `tokens`, `transcript`, where `name` is the cleaned first user prompt.
+- `[SESSION-3]` The session JSON shall contain a `slug` field, the slugified form of `name` (the session's first user prompt).
+- `[SESSION-4]` Where `CLAUDE_CODE_SESSION_ID` is set, the CLI shall report the Claude Code session matching that id.
+- `[SESSION-5a]` While `CLAUDE_CODE_SESSION_ID` is unset, the CLI shall walk its own process ancestry to the nearest `claude` process and, if `~/.claude/sessions/<pid>.json` exists for that PID, report the session named in that record.
+- `[SESSION-5b]` While `CLAUDE_CODE_SESSION_ID` is unset and no `claude` ancestor or session record is found, the CLI shall fall back to the most-recently-modified `.jsonl` in the cwd-derived project directory under `~/.claude/projects/`.
+- `[SESSION-6]` While no Claude Code session is detected, when a VS Code workspace storage entry contains GitHub Copilot chat sessions for the current workspace, the CLI shall report the latest Copilot session.
+- `[SESSION-7]` While no Claude Code or Copilot session is detected, when a Cursor workspace storage entry exists for the current workspace, the CLI shall report the focused Cursor composer session.
+- `[SESSION-8]` For Claude Code sessions, the JSON output shall include a `detailed` block with at least `tool_usage`, `files_touched`, `timeline`, `user_messages`, `overlapping_sessions`, `concurrency`, and `initial_context_tokens`. The `concurrency` block shall report `overlapping` (count of overlapping sessions), `max_parallel` (peak simultaneous sessions over the current session's window, including the current session, computed by a sweep line where touching boundaries do not count as concurrent), and `wall_hours` (the current session's wall-clock span). The `detailed` block may additionally include `compaction` (event timestamps and line numbers) and `git_activity` (commit timeline across detected repos for the last 7 days) when the relevant data is present.
+- `[SESSION-9]` If no session can be detected, then the CLI shall exit with a non-zero status and an actionable error.
+- `[SESSION-10]` When invoked as `logbook session-id`, the CLI shall write only the active session's identifier followed by a newline to stdout, without parsing the session transcript or computing the `detailed` block.
+- `[SESSION-11a]` The `session-id` subcommand shall use the same detection precedence as `session`: `CLAUDE_CODE_SESSION_ID` env, then `claude`-ancestor PID lookup via `~/.claude/sessions/<pid>.json`, then the most-recently-modified Claude Code session for the current workspace.
+- `[SESSION-11b]` If no Claude Code session is detected, then `session-id` shall exit with a non-zero status and an actionable error.
+- `[SESSION-12]` Where the platform is not macOS, the behavior of Copilot and Cursor session detection ([SESSION-6], [SESSION-7]) is undefined — the implementation reads from paths under `~/Library/Application Support/`.
+- `[SESSION-13]` The `session` JSON shall include a top-level `notes` array holding the records from the active session's durable notes log ([NOTE-16]), in capture order, so a retro (or a spawned retro worker) receives them as pre-gathered material. Where the session has no notes log, `notes` shall be an empty array.
+- `[SESSION-14]` For Claude Code sessions, the `tokens` block shall aggregate LLM usage across the **parent transcript and every sub-agent transcript** the session spawned — including workflow-spawned agents — so cost estimation reflects the entire orchestration tree, not just the orchestrator. Sub-agent transcripts are located in the sidecar directory named for the session id alongside the parent transcript (`<projects>/<encoded-cwd>/<session-id>/subagents/**/agent-*.jsonl`). Where at least one sub-agent transcript is present, the output shall additionally include a `tokens_breakdown` object with `parent`, `subagents`, and `subagent_count` so consumers can render a parent-vs-sub-agent split without re-parsing transcripts.
 
 ---
 
@@ -90,66 +90,67 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 - `[RETRO-3]` If the template file is missing, then `logbook retro template-path` shall exit with a non-zero status and an actionable error.
 - `[RETRO-4]` The retro template shall instruct authors to include a YAML frontmatter block containing at minimum: `date`, `category`, `slug`, `session_id`, `device_id`, `cost`, `tool`, `model`.
 - `[RETRO-5]` The retro template shall include sections for Summary, Result, Timeline, Context, Synthesized Prompt, What Worked Well, What Didn't Work, Observations, and Applicability.
+- `[RETRO-5a]` The retro template's Timeline shall name the unit of its time column — elapsed wall-clock from session start in `HH:MM` — in both the column header and the quality standards, so a generator rendering a duration cannot mistake it for `MM:SS`. The two formats are indistinguishable below an hour and diverge only on a multi-hour session, so an unlabeled column stays wrong silently.
 - `[RETRO-6]` The template shall not require Feedback Targets, retro index updates, or pattern-table cross-references — those concerns belong to the consumer, not the plugin.
-- `[RETRO-7]` The `retro` skill shall read the active session's `notes` ([SES-13]) as pre-gathered retro material and synthesize from it — confirming and expanding the captured notes — rather than reconstructing the session cold.
+- `[RETRO-7]` The `retro` skill shall read the active session's `notes` ([SESSION-13]) as pre-gathered retro material and synthesize from it — confirming and expanding the captured notes — rather than reconstructing the session cold.
 - `[RETRO-8]` The `retro` skill shall surface the count of captured notes as a retro-worthiness signal when proposing whether to generate a retro.
 
 ---
 
-## PUB — Publishing
+## PUBLISH — Publishing
 
-- `[PUB-1]` When invoked as `logbook retro publish <category> <slug> <source-dir>`, the CLI shall publish the contents of `<source-dir>` to `<clone>/retros/<category>/<slug>/` in the resolved team's local clone.
-- `[PUB-2]` Where `--team <name>` is passed, the CLI shall use the named team in place of `default_team`.
-- `[PUB-3]` If the named team is not registered, then the CLI shall exit with a non-zero status before performing any git operations.
-- `[PUB-4]` If one or more teams are registered but `default_team` is unset and `--team` is not passed, then the CLI shall exit with a non-zero status before performing any git operations.
-- `[PUB-12]` If no team is configured (no `default_team` and no `teams`) and `--team` is not passed, then the CLI shall treat this as an opt-out: print the staged source directory and an actionable hint, then exit with status zero without performing any git operations.
-- `[PUB-5]` When publishing, the CLI shall fetch the remote and rebase the local clone before copying retro contents.
-- `[PUB-6]` If `git fetch` or `git pull --rebase` fails, then the CLI shall exit with a non-zero status, leaving the local clone in place for manual resolution.
-- `[PUB-7]` If `<clone>/retros/<category>/<slug>/` already exists, then the CLI shall exit with a non-zero status before overwriting.
-- `[PUB-8]` If the source directory produces no staged changes after copy, then the CLI shall exit with a non-zero status and an actionable message.
-- `[PUB-9]` When publishing succeeds, the CLI shall create a single git commit with message `retro: <category>/<slug>` and push to the upstream branch.
-- `[PUB-10]` If `git push` fails, then the CLI shall exit with a non-zero status and an actionable error.
-- `[PUB-11]` The CLI shall not modify, sanitize, or move the source directory — it shall only copy from it.
-
----
-
-## PRIV — Privacy
-
-- `[PRIV-1]` The system shall not include session transcript content in any artifact published to a team retro repo.
-- `[PRIV-2]` The retro frontmatter shall include `session_id` and `device_id` so an author can correlate a published retro to their local session data.
-- `[PRIV-3]` The system shall not attempt to anonymize or hash these identifiers — they are opaque values whose privacy properties are owned by the caller.
-- `[PRIV-4]` Categories shall be free-form strings — the system shall not enforce a category whitelist.
-- `[PRIV-5]` The durable notes log ([NOTE-16]) and its harvested archive ([NOTE-22], `<LOGBOOK_HOME>/notes/harvested/`) are per-workstation state under `<LOGBOOK_HOME>/` — the system shall not publish them to a team retro repo. A retro author may quote or paraphrase notes into the authored retro document, but the raw log is not itself an artifact.
+- `[PUBLISH-1]` When invoked as `logbook retro publish <category> <slug> <source-dir>`, the CLI shall publish the contents of `<source-dir>` to `<clone>/retros/<category>/<slug>/` in the resolved team's local clone.
+- `[PUBLISH-2]` Where `--team <name>` is passed, the CLI shall use the named team in place of `default_team`.
+- `[PUBLISH-3]` If the named team is not registered, then the CLI shall exit with a non-zero status before performing any git operations.
+- `[PUBLISH-4]` If one or more teams are registered but `default_team` is unset and `--team` is not passed, then the CLI shall exit with a non-zero status before performing any git operations.
+- `[PUBLISH-12]` If no team is configured (no `default_team` and no `teams`) and `--team` is not passed, then the CLI shall treat this as an opt-out: print the staged source directory and an actionable hint, then exit with status zero without performing any git operations.
+- `[PUBLISH-5]` When publishing, the CLI shall fetch the remote and rebase the local clone before copying retro contents.
+- `[PUBLISH-6]` If `git fetch` or `git pull --rebase` fails, then the CLI shall exit with a non-zero status, leaving the local clone in place for manual resolution.
+- `[PUBLISH-7]` If `<clone>/retros/<category>/<slug>/` already exists, then the CLI shall exit with a non-zero status before overwriting.
+- `[PUBLISH-8]` If the source directory produces no staged changes after copy, then the CLI shall exit with a non-zero status and an actionable message.
+- `[PUBLISH-9]` When publishing succeeds, the CLI shall create a single git commit with message `retro: <category>/<slug>` and push to the upstream branch.
+- `[PUBLISH-10]` If `git push` fails, then the CLI shall exit with a non-zero status and an actionable error.
+- `[PUBLISH-11]` The CLI shall not modify, sanitize, or move the source directory — it shall only copy from it.
 
 ---
 
-## INST — Install and Onboarding
+## PRIVACY — Privacy
 
-- `[INST-1]` The system shall be distributable as a Claude Code plugin.
-- `[INST-2]` The plugin shall declare itself in `.claude-plugin/plugin.json` with at minimum `name`, `version`, `description`, and `license`.
-- `[INST-3]` The plugin shall expose a slash command at `commands/logbook.md` that maps `/logbook:logbook <args>` to the underlying CLI.
-- `[INST-4]` The plugin shall expose one or more skills under `skills/`; each skill shall defer deterministic operations to the CLI rather than reimplementing them. Skills that are purely conversational orchestrators with no deterministic operations are permitted.
-- `[INST-5]` When invoked as `logbook add-team <git-url>`, the CLI shall clone the URL into `<LOGBOOK_HOME>/repos/<team>/` where `<team>` is derived from the URL basename or supplied via `--as <name>`.
-- `[INST-6]` On the first `logbook add-team` invocation, the CLI shall create `<LOGBOOK_HOME>/config.yaml` and set the new team as `default_team`.
-- `[INST-7]` On subsequent `logbook add-team` invocations, the CLI shall add the new team to `teams` without changing `default_team`.
-- `[INST-8]` If the local clone path for a team already exists, then `logbook add-team` shall exit with a non-zero status before performing any git operations.
-- `[INST-9]` If `git clone` fails, then `logbook add-team` shall exit with a non-zero status and an actionable error.
-- `[INST-10]` Team names shall match the pattern `^[a-z0-9][a-z0-9_-]*$`. If the supplied or derived name does not match, then the CLI shall exit with a non-zero status.
-- `[INST-11]` When invoked as `logbook install-cli [--dir <path>]`, the CLI shall write a bash wrapper to `<path>/logbook` (default `~/.local/bin/logbook`) that execs `python3 <plugin-root>/scripts/logbook "$@"`, and shall also install zsh completions per [COMP-3].
-- `[INST-12]` The plugin shall register a `SessionStart` hook that detects drift between the installed `logbook` CLI wrapper version and `<plugin-root>/.claude-plugin/plugin.json#version`, and surfaces an `additionalContext` notice when they differ. The hook shall be silent when versions match and silent when the CLI is not on PATH.
-- `[INST-13]` The plugin shall register a `SessionStart` hook that injects the orphan sessions ([NOTE-23]) as `additionalContext`, naming the starting session as current via `note orphans --current`, and stays silent when none exist.
-- `[INST-14]` The plugin shall register a `SessionEnd` hook that, when the closing session has un-harvested `deferred` notes, surfaces a `systemMessage` reminder that those notes are parked for a retro, and stays silent otherwise.
+- `[PRIVACY-1]` The system shall not include session transcript content in any artifact published to a team retro repo.
+- `[PRIVACY-2]` The retro frontmatter shall include `session_id` and `device_id` so an author can correlate a published retro to their local session data.
+- `[PRIVACY-3]` The system shall not attempt to anonymize or hash these identifiers — they are opaque values whose privacy properties are owned by the caller.
+- `[PRIVACY-4]` Categories shall be free-form strings — the system shall not enforce a category whitelist.
+- `[PRIVACY-5]` The durable notes log ([NOTE-16]) and its harvested archive ([NOTE-22], `<LOGBOOK_HOME>/notes/harvested/`) are per-workstation state under `<LOGBOOK_HOME>/` — the system shall not publish them to a team retro repo. A retro author may quote or paraphrase notes into the authored retro document, but the raw log is not itself an artifact.
 
 ---
 
-## COMP — Shell Completions
+## INSTALL — Install and Onboarding
 
-- `[COMP-1]` The CLI shall expose a `completions` subcommand for installing shell completions.
-- `[COMP-2]` The CLI shall support `zsh` as a completion target. It shall reject other shell names with a non-zero status.
-- `[COMP-3]` When invoked as `logbook completions zsh`, the CLI shall write the completion script to `~/.zsh/completions/_logbook`.
-- `[COMP-4]` Where the `--print` flag is passed, the CLI shall write the completion script to stdout instead of installing it.
-- `[COMP-5]` The completion script shall offer top-level subcommands and the `retro` subcommand's nested commands.
-- `[COMP-6]` The `install-cli` subcommand shall install the zsh completion script in addition to the wrapper, so a single invocation provisions both PATH access and tab completion.
+- `[INSTALL-1]` The system shall be distributable as a Claude Code plugin.
+- `[INSTALL-2]` The plugin shall declare itself in `.claude-plugin/plugin.json` with at minimum `name`, `version`, `description`, and `license`.
+- `[INSTALL-3]` The plugin shall expose a slash command at `commands/logbook.md` that maps `/logbook:logbook <args>` to the underlying CLI.
+- `[INSTALL-4]` The plugin shall expose one or more skills under `skills/`; each skill shall defer deterministic operations to the CLI rather than reimplementing them. Skills that are purely conversational orchestrators with no deterministic operations are permitted.
+- `[INSTALL-5]` When invoked as `logbook add-team <git-url>`, the CLI shall clone the URL into `<LOGBOOK_HOME>/repos/<team>/` where `<team>` is derived from the URL basename or supplied via `--as <name>`.
+- `[INSTALL-6]` On the first `logbook add-team` invocation, the CLI shall create `<LOGBOOK_HOME>/config.yaml` and set the new team as `default_team`.
+- `[INSTALL-7]` On subsequent `logbook add-team` invocations, the CLI shall add the new team to `teams` without changing `default_team`.
+- `[INSTALL-8]` If the local clone path for a team already exists, then `logbook add-team` shall exit with a non-zero status before performing any git operations.
+- `[INSTALL-9]` If `git clone` fails, then `logbook add-team` shall exit with a non-zero status and an actionable error.
+- `[INSTALL-10]` Team names shall match the pattern `^[a-z0-9][a-z0-9_-]*$`. If the supplied or derived name does not match, then the CLI shall exit with a non-zero status.
+- `[INSTALL-11]` When invoked as `logbook install-cli [--dir <path>]`, the CLI shall write a bash wrapper to `<path>/logbook` (default `~/.local/bin/logbook`) that execs `python3 <plugin-root>/scripts/logbook "$@"`, and shall also install zsh completions per [COMPLETION-3].
+- `[INSTALL-12]` The plugin shall register a `SessionStart` hook that detects drift between the installed `logbook` CLI wrapper version and `<plugin-root>/.claude-plugin/plugin.json#version`, and surfaces an `additionalContext` notice when they differ. The hook shall be silent when versions match and silent when the CLI is not on PATH.
+- `[INSTALL-13]` The plugin shall register a `SessionStart` hook that injects the orphan sessions ([NOTE-23]) as `additionalContext`, naming the starting session as current via `note orphans --current`, and stays silent when none exist.
+- `[INSTALL-14]` The plugin shall register a `SessionEnd` hook that, when the closing session has un-harvested `deferred` notes, surfaces a `systemMessage` reminder that those notes are parked for a retro, and stays silent otherwise.
+
+---
+
+## COMPLETION — Shell Completions
+
+- `[COMPLETION-1]` The CLI shall expose a `completions` subcommand for installing shell completions.
+- `[COMPLETION-2]` The CLI shall support `zsh` as a completion target. It shall reject other shell names with a non-zero status.
+- `[COMPLETION-3]` When invoked as `logbook completions zsh`, the CLI shall write the completion script to `~/.zsh/completions/_logbook`.
+- `[COMPLETION-4]` Where the `--print` flag is passed, the CLI shall write the completion script to stdout instead of installing it.
+- `[COMPLETION-5]` The completion script shall offer top-level subcommands and the `retro` subcommand's nested commands.
+- `[COMPLETION-6]` The `install-cli` subcommand shall install the zsh completion script in addition to the wrapper, so a single invocation provisions both PATH access and tab completion.
 
 ---
 
@@ -194,14 +195,14 @@ A `deferred` note ([NOTE-9]) is consumed by a retro. The harvest lifecycle marks
 
 - `[NOTE-22]` When invoked as `logbook note harvest <session-id>`, the CLI shall move that session's notes log from `<LOGBOOK_HOME>/notes/<session-id>.jsonl` to `<LOGBOOK_HOME>/notes/harvested/<session-id>.jsonl`, creating the `harvested/` directory on first use. The subcommand shall be idempotent: where the source log is absent, it shall report that and exit zero.
 - `[NOTE-23]` A session is an orphan when all of: it is not the current session; it is not live (its id is not the `sessionId` of any `~/.claude/sessions/<pid>.json` whose pid is alive); its transcript has been idle longer than a grace window (30 minutes); its notes log has not been harvested; and it carries at least one `deferred` note. Notes with `this-session` or `issue` dispositions have their own resolution paths ([NOTE-5], [NOTE-6]) and shall not make a session an orphan.
-- `[NOTE-24]` When invoked as `logbook note orphans`, the CLI shall list the sessions matching the [NOTE-23] predicate — with `--json` as raw records carrying at minimum `session_id`, `deferred_count`, and `idle_seconds`; otherwise as a human-readable summary including the count. The subcommand shall accept `--current <id>` to name the session treated as current, falling back to the [SES-11a] detection precedence when absent. Where no session matches, the CLI shall report none and exit zero.
+- `[NOTE-24]` When invoked as `logbook note orphans`, the CLI shall list the sessions matching the [NOTE-23] predicate — with `--json` as raw records carrying at minimum `session_id`, `deferred_count`, and `idle_seconds`; otherwise as a human-readable summary including the count. The subcommand shall accept `--current <id>` to name the session treated as current, falling back to the [SESSION-11a] detection precedence when absent. Where no session matches, the CLI shall report none and exit zero.
 - `[NOTE-25]` A retro implementation that consumes a session's notes shall call `logbook note harvest <session-id>` at publish time, so harvesting fires regardless of which publish path the retro uses.
 
 ### Durable notes log
 
 - `[NOTE-16]` The system shall persist notes in an append-only log at `<LOGBOOK_HOME>/notes/<session-id>.jsonl`, one JSON object per line, where `<session-id>` is the active session's identifier.
 - `[NOTE-17]` Each note record shall contain at minimum `text` (the observation), `captured_at` (an ISO 8601 timestamp), and `transcript_line` (the line offset into the active session transcript at capture time — "where you are in the transcript"). A record may additionally carry `disposition` (`this-session` | `issue` | `deferred`), `kind` (`friction` | `win`), and `target` (the identified artifact path).
-- `[NOTE-18]` When invoked as `logbook note add <text>`, the CLI shall resolve the active session via the [SES-11a] detection precedence, compute `transcript_line` from the current transcript line count, append one record to that session's notes log, and create the log (and its parent directory) on first write. Where no session can be resolved, the CLI shall exit with a non-zero status and an actionable error.
+- `[NOTE-18]` When invoked as `logbook note add <text>`, the CLI shall resolve the active session via the [SESSION-11a] detection precedence, compute `transcript_line` from the current transcript line count, append one record to that session's notes log, and create the log (and its parent directory) on first write. Where no session can be resolved, the CLI shall exit with a non-zero status and an actionable error.
 - `[NOTE-19]` The `note add` subcommand shall accept optional `--disposition`, `--kind`, and `--target` values and record them on the appended note.
 - `[NOTE-20]` When invoked as `logbook note list`, the CLI shall print the active session's notes — or those of the session named by `--session <id>` — and with `--json` shall emit the raw records; otherwise it shall print a human-readable summary that includes the note count. Where the session has no notes log, the CLI shall report zero notes and exit zero.
 - `[NOTE-21]` The note record schema of [NOTE-17] is the contract consumed by retro generation and by downstream retro implementations; a change to it shall be reflected in this spec.
@@ -217,32 +218,32 @@ A `deferred` note ([NOTE-9]) is consumed by a retro. The harvest lifecycle marks
 
 ---
 
-## EXP — Export and Import
+## EXPORT — Export and Import
 
 Notes are an ephemeral, session-scoped stash (`[NOTE-16]`): captured mid-session, consumed at retro, durable only so a session closed early or abandoned does not lose them. Export and import move that stash between workstations, recover an abandoned session's notes, or produce an artifact that joins with tack's and beacon's data. The join key is the Claude Code session id — the same id tack records in `route.sessions[].id` and beacon carries in its wip payload's `session`.
 
 ### Archive format
 
-- `[EXP-1]` The export archive shall be a JSON document with top-level keys `schemaVersion` (integer), `exportedAt` (ISO 8601 timestamp), `generator` (`logbook <version>`), `device_id` (the exporting workstation's device id, or null), and `sessions` (an array).
-- `[EXP-2]` Each `sessions[]` entry shall contain `session_id` (the Claude Code session id) and `notes` (the session's note records per `[NOTE-17]`, in capture order). Sessions with no notes shall be omitted.
-- `[EXP-3]` The current archive `schemaVersion` shall be `1`. Import shall refuse an archive whose `schemaVersion` exceeds the reader's, exiting non-zero with an actionable message, so a future revision can ship a migration rather than silently mishandling unknown fields.
+- `[EXPORT-1]` The export archive shall be a JSON document with top-level keys `schemaVersion` (integer), `exportedAt` (ISO 8601 timestamp), `generator` (`logbook <version>`), `device_id` (the exporting workstation's device id, or null), and `sessions` (an array).
+- `[EXPORT-2]` Each `sessions[]` entry shall contain `session_id` (the Claude Code session id) and `notes` (the session's note records per `[NOTE-17]`, in capture order). Sessions with no notes shall be omitted.
+- `[EXPORT-3]` The current archive `schemaVersion` shall be `1`. Import shall refuse an archive whose `schemaVersion` exceeds the reader's, exiting non-zero with an actionable message, so a future revision can ship a migration rather than silently mishandling unknown fields.
 
 ### Export
 
-- `[EXP-4]` When invoked as `logbook export`, the CLI shall build an archive and, by default, write its JSON to stdout.
-- `[EXP-5]` With no `--session` or `--all`, `export` shall resolve the active session via the `[SES-11a]` detection precedence and export only that session; where no session is detected it shall exit non-zero with an actionable message.
-- `[EXP-6]` Where `--session <id>` is passed, `export` shall export only that session's notes. Where `--all` is passed, `export` shall export every session with a notes log under `<LOGBOOK_HOME>/notes/`.
-- `[EXP-7]` Where `--out-file <path>` is passed, `export` shall write the archive to that path instead of stdout and print a one-line summary of the counts, size, and schema version.
-- `[EXP-8]` Where `--compress` is passed, `export` shall gzip the archive bytes, whether the sink is a file or stdout.
+- `[EXPORT-4]` When invoked as `logbook export`, the CLI shall build an archive and, by default, write its JSON to stdout.
+- `[EXPORT-5]` With no `--session` or `--all`, `export` shall resolve the active session via the `[SESSION-11a]` detection precedence and export only that session; where no session is detected it shall exit non-zero with an actionable message.
+- `[EXPORT-6]` Where `--session <id>` is passed, `export` shall export only that session's notes. Where `--all` is passed, `export` shall export every session with a notes log under `<LOGBOOK_HOME>/notes/`.
+- `[EXPORT-7]` Where `--out-file <path>` is passed, `export` shall write the archive to that path instead of stdout and print a one-line summary of the counts, size, and schema version.
+- `[EXPORT-8]` Where `--compress` is passed, `export` shall gzip the archive bytes, whether the sink is a file or stdout.
 
 ### Import
 
-- `[EXP-9]` When invoked as `logbook import <path>`, the CLI shall read the archive from that path, or from stdin where `<path>` is `-`, and shall accept both plain-JSON and gzip-compressed archives, detecting gzip by its magic bytes.
-- `[EXP-10]` Import shall restore each archived session's notes into `<LOGBOOK_HOME>/notes/<session-id>.jsonl`, creating the log and its parent directory on first write.
-- `[EXP-11]` In the default `--merge` mode, import shall be additive: for each session it shall append only the archived notes not already present in the local log, identifying a note by its `captured_at` and `text`, and shall never mutate or reorder existing records.
-- `[EXP-12]` Where `--replace` is passed, import shall overwrite each archived session's local notes log with the archived notes. Passing both `--merge` and `--replace` shall exit non-zero.
-- `[EXP-13]` Where `--dry-run` is passed, import shall report what it would change — per session, notes added and already present — without writing to any log.
-- `[EXP-14]` Import shall not restore `device_id` or any config; the archive's `device_id` is provenance metadata only, since the device id is per-workstation state (`[CFG-7]`).
+- `[EXPORT-9]` When invoked as `logbook import <path>`, the CLI shall read the archive from that path, or from stdin where `<path>` is `-`, and shall accept both plain-JSON and gzip-compressed archives, detecting gzip by its magic bytes.
+- `[EXPORT-10]` Import shall restore each archived session's notes into `<LOGBOOK_HOME>/notes/<session-id>.jsonl`, creating the log and its parent directory on first write.
+- `[EXPORT-11]` In the default `--merge` mode, import shall be additive: for each session it shall append only the archived notes not already present in the local log, identifying a note by its `captured_at` and `text`, and shall never mutate or reorder existing records.
+- `[EXPORT-12]` Where `--replace` is passed, import shall overwrite each archived session's local notes log with the archived notes. Passing both `--merge` and `--replace` shall exit non-zero.
+- `[EXPORT-13]` Where `--dry-run` is passed, import shall report what it would change — per session, notes added and already present — without writing to any log.
+- `[EXPORT-14]` Import shall not restore `device_id` or any config; the archive's `device_id` is provenance metadata only, since the device id is per-workstation state (`[CONFIG-7]`).
 
 ---
 
