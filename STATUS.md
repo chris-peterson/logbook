@@ -20,11 +20,28 @@ revised.
 | PRIVACY | 5 | All Covered | Core contract; PRIVACY-5 (notes log is local-only, never published) |
 | INSTALL | 14 | All Covered | `commands/logbook.md`, `skills/`, `hooks/`; INSTALL-13/14 (`SessionStart`/`SessionEnd` orphan-notes hook, `hooks/orphan-notes.sh`) |
 | COMPLETION | 6 | All Covered | `scripts/logbook` completions + `install-cli` |
-| COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json` |
+| COST | 7 | All Covered | `scripts/logbook` retro estimate-cost; `scripts/model_prices.json`; COST-6/6a count as one (prefix and dotted normalization plus the bracketed context-window suffix) |
 | EXPORT | 14 | All Covered | `scripts/logbook` `export`/`import` + archive format (shipped in 0.12.0) |
 | NOTE | 25 | All Covered | `skills/note/SKILL.md` recorder model: dispositions This Session/File an issue/Defer to retro; NOTE-8/8a count as one (issue filing delegates to `/anchor:issue` when available); durable notes log + `logbook note add`/`list`/`harvest`/`orphans` (`scripts/logbook`); NOTE-22..25 (harvest lifecycle + orphan backstop); `start`/`end` hand-edit bracket |
 
 ## Audit history
+
+### 2026-08-09 — price refresh, Opus 5 default, bracketed model ids
+
+Refreshed `scripts/model_prices.json` from LiteLLM: four new keys
+(`claude-opus-5`, `claude-opus-4-8`, `claude-sonnet-5`, `claude-fable-5`); no
+rate changed on an existing model, and the rest of the upstream diff is metadata
+`estimate-cost` doesn't read.
+
+- **Spec (SPEC.md)** — `[COST-3]` default model `claude-opus-4-7` →
+  `claude-opus-5`; `[COST-4]` recognized-id floor updated to lead with the
+  current generation; `[COST-6a]` added for the bracketed context-window suffix.
+- **Implementation (`scripts/logbook`)** — `DEFAULT_MODEL` bumped;
+  `_resolve_model` strips a trailing `[…]` so `claude-opus-5[1m]` — the exact
+  model id Claude Code reports for a long-context session — resolves instead of
+  exiting `unknown model`. (The transcript's own `model` field, which
+  `logbook session` reports, carries the base id.)
+- **Coverage delta** — none; still 129, COST-6/6a count as one.
 
 ### 2026-08-09 — Coverage refresh (spec-status)
 

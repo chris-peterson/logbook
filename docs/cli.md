@@ -10,7 +10,7 @@ logbook device-id                                     print/persist per-workstat
 logbook config                                        print resolved config
 logbook retro publish <category> <slug> <dir> [--team <t>]
 logbook retro template-path                           absolute path to retro template
-logbook retro estimate-cost <i> <o> <cc> <cr> [--model claude-opus-4-7|claude-sonnet-4-6|...]
+logbook retro estimate-cost <i> <o> <cc> <cr> [--model claude-opus-5|claude-sonnet-5|...]
 logbook install-cli [--dir <path>]                    install 'logbook' wrapper on PATH + zsh completions
 logbook completions zsh [--print]                     install/print zsh completions
 ```

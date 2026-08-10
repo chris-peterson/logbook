@@ -158,10 +158,11 @@ The single invariant: **a retrospective committed to a team retro repo contains 
 
 - `[COST-1]` When invoked as `logbook retro estimate-cost <input> <output> <cache_create> <cache_read>`, the CLI shall print a single line of the form `~$X.XX` to stdout.
 - `[COST-2]` The CLI shall apply Anthropic's published per-token pricing for the resolved model, sourced from the vendored LiteLLM price table at `scripts/model_prices.json`.
-- `[COST-3]` Where `--model <name>` is passed, the CLI shall use that model's pricing. The default model shall be `claude-opus-4-7`.
-- `[COST-4]` The CLI shall recognize at minimum the model identifiers `claude-opus-4-7`, `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
+- `[COST-3]` Where `--model <name>` is passed, the CLI shall use that model's pricing. The default model shall be `claude-opus-5`.
+- `[COST-4]` The CLI shall recognize at minimum the model identifiers `claude-opus-5`, `claude-sonnet-5`, `claude-opus-4-7`, `claude-sonnet-4-6`, `claude-haiku-4-5`.
 - `[COST-5]` If an unknown model is requested, then the CLI shall exit with a non-zero status and list the supported models.
 - `[COST-6]` Where the supplied model identifier omits the `claude-` prefix or substitutes `.` for `-` (e.g. `opus-4.7` for `claude-opus-4-7`), the CLI shall normalize and accept it.
+- `[COST-6a]` Where the supplied model identifier carries a trailing bracketed context-window variant (e.g. `claude-opus-5[1m]`, the form Claude Code reports as the exact model id), the CLI shall drop the suffix and resolve the base identifier. The price table keys on the base id, and both variants bill at the same per-token rates below the base model's long-context threshold.
 - `[COST-7]` The repository shall provide a `just refresh-prices` target that re-downloads the LiteLLM price file and writes the filtered Anthropic-direct subset to `scripts/model_prices.json`.
 
 ---

@@ -15,7 +15,7 @@ Single-file CLI. Subcommands:
     import <path|-> [--merge | --replace] [--dry-run]                  restore notes from an archive
     retro publish <category> <slug> <dir> [--team <t>]
     retro template-path                           absolute path to retro template
-    retro estimate-cost <i> <o> <cc> <cr> [--model claude-opus-4-7|claude-sonnet-4-6|...]
+    retro estimate-cost <i> <o> <cc> <cr> [--model claude-opus-5|claude-sonnet-5|...]
     install-cli [--dir <path>]                    install 'logbook' wrapper on PATH + zsh completions
     completions zsh [--print]                     install/print zsh completions
 """
@@ -161,7 +161,7 @@ _logbook "$@"
 # vendored table is stale — refresh.
 
 PRICES_PATH = PLUGIN_ROOT / "scripts" / "model_prices.json"
-DEFAULT_MODEL = "claude-opus-4-7"
+DEFAULT_MODEL = "claude-opus-5"
 
 
 def _load_prices() -> dict:
@@ -173,12 +173,17 @@ def _load_prices() -> dict:
 def _resolve_model(name: str, prices: dict) -> str:
     """Map a user-supplied model name to a key in the price table.
 
-    Accepts LiteLLM/Anthropic dashed keys verbatim (`claude-opus-4-7`,
+    Accepts LiteLLM/Anthropic dashed keys verbatim (`claude-opus-5`,
     `claude-opus-4-7-20260416`) and a few legacy short forms (`opus-4.7`).
+
+    Claude Code reports a context-window variant as a bracketed suffix on the
+    model id (`claude-opus-5[1m]`), which the price table doesn't key on — the
+    suffix is dropped so that form pastes in unedited.
     """
     if name in prices:
         return name
     n = name.lower().replace(" ", "").replace("_", "-").replace(".", "-")
+    n = re.sub(r"\[[^\]]*\]$", "", n)
     candidates = [n, f"claude-{n}"] if not n.startswith("claude-") else [n]
     for c in candidates:
         if c in prices:
