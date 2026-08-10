@@ -1,6 +1,6 @@
 {
   "name": "logbook",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "A log of important learnings, e.g. AI-assisted coding session retros.",
   "author": {
     "name": "Chris Peterson"
