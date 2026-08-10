@@ -1,14 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Added
-- **The retro template's Timeline column names its unit: `HH:MM` elapsed from session start.** The example rows showed values like `0:00` and `3:30` without saying what scale they were on, and a generator computing elapsed time naturally prints a duration as `MM:SS`. Under an hour the two are indistinguishable, so a wrong choice survives every short session and only surfaces on a multi-hour one, where `MM:SS` renders `311:14`. ([RETRO-5a])
-- **A note filed as an issue now goes through anchor when you have it installed.** `File an issue` used to hand you a pre-filled "new issue" URL to click through, which produced an unstructured issue and left the filing half-done until you got to the browser. With anchor present, `/logbook:note` delegates to `/anchor:issue`, which files it directly via `gh`/`glab` in the why-first shape (Context → Proposed approach → Acceptance criteria) the rest of the suite's issues use. Without anchor the pre-filled URL path is unchanged — the dependency is optional. ([NOTE-8a])
-
-### Other
-- Requirement category prefixes are spelled out: `CFG` → `CONFIG`, `SES` → `SESSION`, `PUB` → `PUBLISH`, `PRIV` → `PRIVACY`, `INST` → `INSTALL`, `COMP` → `COMPLETION`, `EXP` → `EXPORT`. `CLI`, `RETRO`, `COST`, and `NOTE` are unchanged. Every reference in the spec, the coverage ledger, and this changelog moves with them, so an ID cited anywhere still resolves.
-
 ## 0.14.0
 
 ### Features
