@@ -49,19 +49,25 @@ suite:
     - label: "/logbook:note"
       ac: "--build"
       frames:
-        - { t: you, text: "/logbook:note the tenant-prefix rule isn't written down anywhere" }
-        - { t: claude, text: "That belongs in CLAUDE.md. I'll add the rule now and sweep the helpers that miss the prefix while we're in this session." }
-        - { t: status, text: "captures the observation and fixes it in place, this session" }
+        - { t: you, text: "/logbook:note this skill's own example uses plain mktemp, so Write refuses on the 0-byte file it leaves behind" }
+        - { t: claude, text: "Recorded as friction against <code>skills/note/references/file-an-issue.md</code>. Switching it to <code>mktemp -u</code> — and the other skills that show a tmp-path example copy this one, so I'll sweep those too." }
+        - { t: status, text: "captures the observation, fixes it in place, and sweeps the sites that copy it" }
     - label: "/logbook:retro"
       ac: "--purple"
       frames:
-        - { t: you, text: "/logbook:retro" }
-        - { t: claude, text: "Pulled the session metrics and cost. I'll draft the write-up — what worked, what didn't, the lesson — then publish to the team repo." }
+        - { t: you, text: "/logbook:retro", type: true, retro: true }
+        - { t: claude, text: "1h 04m, 64 tool calls, ~$19.73. Two frictions you flagged mid-run are already in the notes log — I'll build the write-up around those rather than reconstruct the session cold." }
         - { t: status, text: "commits the retro to the team repo; the transcript never leaves your machine" }
   session:
-    - { t: claude, text: "Third tenant-isolation bug this week." }
-    - { t: thought, text: "this convention isn't written down anywhere" }
-    - { t: cmd, cmd: "/logbook:note", out: "Documents the tenant-prefix rule in CLAUDE.md and sweeps the helpers that miss it — now, this session." }
+    - { t: shell, path: "~/src/tack", branch: "main", cmd: "claude" }
+    - { t: you, text: "expand the requirement-ID categories to 4 letters" }
+    - { t: claude, text: "Renamed them — but padding short names to a fixed width gives you <code>CL → CMDS</code> and <code>DV → DLVR</code>, which read worse than the mix of full words and 3-char abbreviations they replaced." }
+    - { t: thought, text: "that lesson belongs to sextant, not this repo" }
+    - { t: you, text: "/logbook:note a fixed prefix width optimizes uniformity over readability, and these codes are read far more than typed" }
+    - { t: note, text: "friction · target: sextant · disposition: File an issue" }
+    - { t: cmd, cmd: "/anchor:issue", out: "Filed in the repo that owns the lesson, why-first, with the naming evidence from this session." }
+    - { t: link, text: "sextant#1 — Requirement-ID categories: natural 3–4 char codes, not fixed width", href: "https://github.com/chris-peterson/sextant/issues/1", after: " — tracked work, not a URL waiting to be clicked" }
+    - { t: status, text: "back to the tack work — the lesson left the session, the transcript didn't" }
 
 docs:
   code_languages: [bash, yaml, python, json]

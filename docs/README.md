@@ -6,10 +6,16 @@ logbook works with Claude Code, Cursor, and GitHub Copilot. Transcripts stay on 
 
 ## In action
 
-The third time the same bug bites, the lesson belongs somewhere the next person
-will find it. `/logbook:note` catches it mid-session and fixes it in place:
+The lessons worth keeping rarely belong to the repo you're sitting in. Here a
+naming convention turns out to be a lesson about a *different* tool, so the note
+is filed there — as tracked work — without derailing the session that found it.
 
 <div class="cw-session" data-cw-session="session"></div>
+
+Filing goes through [anchor](https://chris-peterson.github.io/anchor/) when you
+have it installed, so the issue lands in the same why-first shape as the rest of
+your issues. Without anchor you get the note body and a pre-filled issue URL
+instead.
 
 ## Interface
 
@@ -17,7 +23,7 @@ will find it. `/logbook:note` catches it mid-session and fixes it in place:
 |---|---|
 | `/logbook:logbook <subcommand>` | Slash command that maps directly to the CLI (deterministic ops) |
 | [`/logbook:retro`](/skills/retro) | Skill that gathers retro content conversationally and publishes via the CLI |
-| [`/logbook:note`](/skills/note)   | Skill that captures a mid-session observation, then acts, defers to a fresh session, or logs only |
+| [`/logbook:note`](/skills/note)   | Skill that captures a mid-session observation, then fixes it here, files it as an issue, or leaves it for the retro |
 | `logbook` (shell)       | Same CLI, runnable from any terminal |
 
 The two skills you reach for most — catch a lesson the moment it lands, or
@@ -61,10 +67,13 @@ reflect on the whole session once the work is done:
 ## Privacy
 
 > [!IMPORTANT]
-> Transcripts are **never** published. The team repo gets the retro `index.md` only.
+> Transcripts are **never** published. `retro publish` copies the retro directory
+> you hand it, verbatim — that directory is the boundary, and nothing from your
+> transcript is written into it.
 
+- The CLI reads your transcript locally, to count tokens and reconstruct the session's shape. It never writes any of that content into a published artifact — what crosses the boundary is prose you wrote.
 - The retro frontmatter includes `session_id` and `device_id` so an author can correlate a published retro to their local session data.
-- The CLI does not read or modify session transcripts. Transcript handling is the caller's responsibility (e.g. a separate sanitization hook before publishing).
+- Notes stay on the workstation under `~/.logbook/`, harvested archive included. A retro may quote them; the log itself is never published.
 - Categories are free-form strings — no enforced allowlist.
 
 ## Reference
