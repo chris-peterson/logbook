@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **A note filed as an issue now goes through anchor when you have it installed.** `File an issue` used to hand you a pre-filled "new issue" URL to click through, which produced an unstructured issue and left the filing half-done until you got to the browser. With anchor present, `/logbook:note` delegates to `/anchor:issue`, which files it directly via `gh`/`glab` in the why-first shape (Context → Proposed approach → Acceptance criteria) the rest of the suite's issues use. Without anchor the pre-filled URL path is unchanged — the dependency is optional. ([NOTE-8a])
+
 ## 0.14.0
 
 ### Features

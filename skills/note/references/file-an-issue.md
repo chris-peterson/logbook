@@ -1,6 +1,6 @@
 # Disposition: `File an issue` — full mechanics
 
-Loaded from `skills/note/SKILL.md` when the `File an issue` disposition fires.
+Loaded from `skills/note/SKILL.md` when the `File an issue` disposition fires and `/anchor:issue` is not available. With anchor installed the skill delegates filing to it instead, and none of the mechanics below run.
 
 Emit a structured note the user can review, attach, or file as an issue. No file in the target repo is modified and no session is spawned. The skill produces three artifacts in one pass: a tempfile on disk, the body on the system clipboard, and (when the cwd is a git repo on a known forge) a pre-filled "new issue" URL.
 
@@ -37,7 +37,7 @@ fi
 
 Record whether at least one copy succeeded — surface "copied to clipboard" or "clipboard unavailable" in the summary.
 
-**Build a "new issue" URL** when cwd is a git repo on a recognized forge. URL emission lives here; actually filing via `gh`/`glab` is deferred.
+**Build a "new issue" URL** when cwd is a git repo on a recognized forge. This standalone path emits a URL and stops — filing via `gh`/`glab` is anchor's job, and logbook does not reimplement it.
 
 Detect the forge from `git remote get-url origin`:
 
