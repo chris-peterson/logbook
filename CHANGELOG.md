@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+- **The stale-wrapper check can see drift at all now.** The SessionStart hook asked the on-PATH `logbook` for its version without clearing `CLAUDE_PLUGIN_ROOT`, and the CLI prefers that variable over its own location — so an out-of-date wrapper read the *current* manifest and reported a version that always matched. The check passed silently at every amount of drift. It now asks the wrapper for its own build's version, and a stale one is reported. ([INSTALL-12])
+- **Unexpected output from the wrapper no longer reads as drift.** The version was taken as the last field of whatever the wrapper printed, so a wrapper that printed anything else produced a nudge naming a nonsense version. Output that doesn't start with `logbook ` is now ignored.
+- **The check no longer spawns `python3` twice per session start.** The manifest read and the JSON envelope are done in the shell, so a session start costs no interpreter launches for this hook.
+
 ## 0.15.1
 
 ### Fixes
