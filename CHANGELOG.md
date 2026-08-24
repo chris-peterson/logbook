@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.16.0
 
 **This is logbook's last planned release.** It didn't find enough adoption to
 keep developing, so the project is reference-only from here.
