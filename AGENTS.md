@@ -26,9 +26,8 @@ before adding either.
 
 ```bash
 just test        # python3 -m unittest discover -s tests
-just check       # validate source and preview the pending projection (no write)
-just generate    # regenerate plugin.json and docs/ from plugin.yml and the sources
-just docs        # serve the docsify site locally
+just docs        # render the docsify site and serve it locally
+just preview-generated   # run CI's generators here; `git restore .` discards the result
 
 python3 scripts/logbook --help    # run the CLI from source, no install needed
 just refresh-prices               # refresh scripts/model_prices.json for cost estimation
@@ -48,12 +47,33 @@ hooks/                   CLI freshness and orphan-note reminders
 templates/retro.md       the retro shape — frontmatter plus section scaffolding
 tests/                   unittest suites
 SPEC.md / STATUS.md      requirements and their coverage
-docs/                    docsify site (index.html, _sidebar.md, favicon are source)
+docs/                    docsify site (README.md, _sidebar.md, cli.md, skills.md, favicon are source)
 ```
 
-`.claude-plugin/plugin.json`, `plugin.yml`'s `suite.describe` block, and most of
-`docs/` are **generated** by `shipyard` from the sources above. Never hand-edit a
-generated file; edit its source and run `just generate`.
+`.claude-plugin/plugin.json`, `hooks/hooks.json`, `plugin.yml`'s `suite.describe`
+block, and most of `docs/` are **generated** by `shipyard` from the sources above,
+and CI is what writes them. The Project workflow runs the generators on every push
+and commits the result back to the branch, so a committed artifact matches its
+source at all times and the diff a reviewer approves is the change that lands.
+Editing `plugin.yml`, `hooks/hooks.yml`, a skill, or a command needs no local
+regeneration step; `just preview-generated` reads what CI would write.
+
+## Releasing
+
+`shipyard release`, twice, from a clean `main` that is pushed. The first run reads
+what landed since the last tag and drafts it into `CHANGELOG.md` under
+`## Unreleased`; you rewrite those lines for someone *using* logbook. The second
+prints the version, the body, and the refs it will write, asks once, then commits
+the notes with the version bump, tags that commit, pushes both, and publishes.
+The bump comes from the headings you wrote, so sorting the notes is what picks the
+version. CI's only remaining part is the marketplace rebuild, which needs a repo
+secret.
+
+```bash
+uvx --from 'git+https://github.com/chris-peterson/shipyard@v2' shipyard release
+```
+
+Don't bump the version, retitle the section, or cut the tag by hand.
 
 ## Conventions
 

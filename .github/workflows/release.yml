@@ -1,16 +1,16 @@
 name: Release
 
-# Delegates to shipyard's reusable release workflow (float to @actions during
-# consolidation). secrets: inherit passes MARKETPLACE_DISPATCH_TOKEN through.
+# The release itself is cut from a checkout with `shipyard release`, which
+# commits the notes and the bump, tags that commit, pushes both, and publishes.
+# What is left for CI is the one step that needs a repo secret:
+# MARKETPLACE_DISPATCH_TOKEN, which `secrets: inherit` passes through, is what
+# can dispatch the marketplace rebuild across repositories.
 
 on:
   release:
     types: [published]
 
-permissions:
-  contents: write
-
 jobs:
-  release:
-    uses: chris-peterson/shipyard/.github/workflows/release.yml@v1
+  notify:
+    uses: chris-peterson/shipyard/.github/workflows/notify-marketplace.yml@v2
     secrets: inherit

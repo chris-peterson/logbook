@@ -2,10 +2,17 @@
 
 ## Unreleased
 
+**This is logbook's last planned release.** It didn't find enough adoption to
+keep developing, so the project is reference-only from here.
+
 ### Fixes
 - **The stale-wrapper check can see drift at all now.** The SessionStart hook asked the on-PATH `logbook` for its version without clearing `CLAUDE_PLUGIN_ROOT`, and the CLI prefers that variable over its own location — so an out-of-date wrapper read the *current* manifest and reported a version that always matched. The check passed silently at every amount of drift. It now asks the wrapper for its own build's version, and a stale one is reported. ([INSTALL-12])
 - **Unexpected output from the wrapper no longer reads as drift.** The version was taken as the last field of whatever the wrapper printed, so a wrapper that printed anything else produced a nudge naming a nonsense version. Output that doesn't start with `logbook ` is now ignored.
 - **The check no longer spawns `python3` twice per session start.** The manifest read and the JSON envelope are done in the shell, so a session start costs no interpreter launches for this hook.
+
+### Other
+- **Every generated artifact is written by CI now, on [shipyard](https://github.com/chris-peterson/shipyard) v2.** `.claude-plugin/plugin.json`, `hooks/hooks.json`, and `plugin.yml`'s `suite.describe` block were written by whoever remembered to run `just generate`, so a merged source edit could ship an artifact that disagreed with it. A `Project` workflow runs the generators on every push and commits the result to the branch, and the test job runs again on that commit — GitHub starts no workflow for a push made with its own token, so the tree that merges was the one nothing tested. `scripts/shipyard`, the `Preview` job, and the `generate` / `check` / `plugin-json` / `describe` recipes are gone; `just preview-generated` reads what CI would write, through `uvx`, with no checkout or local PyYAML needed.
+- **A release is cut from a checkout with `shipyard release`.** Publishing a GitHub release and letting a workflow bump afterwards meant `plugin.json` at the tag reported the *previous* version. The notes, the version bump, and the tag are now one commit, pushed atomically, and the published body is the changelog section byte for byte. Dispatching the marketplace rebuild is all that is left in CI.
 
 ## 0.15.1
 

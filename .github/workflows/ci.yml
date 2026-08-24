@@ -1,18 +1,39 @@
 name: CI
 
+# Runs on a push or PR as usual, and *again* after the projection job pushes.
+#
+# That second trigger exists because GitHub won't run workflows for a commit
+# pushed with GITHUB_TOKEN — its guard against a job that pushes re-triggering
+# itself forever. The projection job pushes, so without this the commit that
+# actually merges is the one nothing tested.
+#
+# What the workflow_run path turns on:
+#   * head_sha names the commit the projection run *started* on, not the one it
+#     pushed — so the job checks out head_branch instead
+#   * a workflow_run run is associated with the default branch, so it cannot
+#     produce a PR check by running; the `report` job posts the status onto the
+#     projected commit explicitly
+
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Project]
+    types: [completed]
 
 permissions:
   contents: read
 
 jobs:
   test:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
 
       - uses: actions/setup-python@v6
         with:
@@ -20,3 +41,25 @@ jobs:
 
       - name: Run tests (CLI ↔ completion drift)
         run: python3 -m unittest discover -s tests -v
+
+  report:
+    name: Report onto the commit the projection pushed
+    needs: [test]
+    if: always() && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STATE: ${{ needs.test.result == 'success' && 'success' || 'failure' }}
+        run: |
+          set -euo pipefail
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${BRANCH}" --jq .sha)
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/${sha}" \
+            -f state="$STATE" -f context=CI \
+            -f target_url="$RUN_URL" \
+            -f description='ran on the projected tree'
